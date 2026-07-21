@@ -12,6 +12,9 @@ const EnvSchema = z.object({
   SSO_BASE_URL: z.string().min(1),
   SSO_PARTNER_CODE: z.string().min(1),
   SSO_PARTNER_SECRET: z.string().min(1),
+  // Required by the live SSO /api/token despite being absent from the spec;
+  // set it to the value given in the official hackathon SSO docs.
+  SSO_SCOPE: z.string().optional(),
 
   EVERIFY_BASE_URL: z.string().min(1),
   EVERIFY_CLIENT_ID: z.string().min(1),
