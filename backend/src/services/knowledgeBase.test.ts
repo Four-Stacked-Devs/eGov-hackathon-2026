@@ -28,6 +28,56 @@ describe("answerFromKnowledgeBase", () => {
     expect(answerFromKnowledgeBase("HOW TO GET AN SSS NUMBER").matched).toBe(true);
   });
 
+  describe("driver's license sub-topics (built from the roadmap definition)", () => {
+    it("answers medical certificate questions with the real node data", () => {
+      const result = answerFromKnowledgeBase("What do I need for the medical certificate?");
+      expect(result.matched).toBe(true);
+      expect(result.text).toContain("Medical Certificate");
+      expect(result.text).toContain("₱500");
+      expect(result.text).toContain("LTO-accredited");
+    });
+
+    it("answers TDC questions", () => {
+      const result = answerFromKnowledgeBase("what is the theoretical driving course?");
+      expect(result.text).toContain("Theoretical Driving Course");
+      expect(result.text).toContain("15-hour");
+    });
+
+    it("answers student permit questions", () => {
+      const result = answerFromKnowledgeBase("how do I get my student permit?");
+      expect(result.text).toContain("Student Permit");
+      expect(result.text).toContain("₱250");
+    });
+
+    it("answers practical driving course questions", () => {
+      const result = answerFromKnowledgeBase("tell me about the PDC");
+      expect(result.text).toContain("Practical Driving Course");
+    });
+
+    it("answers exam questions", () => {
+      const result = answerFromKnowledgeBase("what happens in the written exam?");
+      expect(result.text).toContain("Non-Pro License Application & Exams");
+    });
+
+    it("answers cost questions with the computed total", () => {
+      const result = answerFromKnowledgeBase("how much will everything cost?");
+      expect(result.text).toContain("₱4,835");
+      expect(result.text).toContain("₱3,500");
+    });
+
+    it("answers timeline questions with the computed estimate", () => {
+      const result = answerFromKnowledgeBase("how long does the whole process take?");
+      expect(result.text).toContain("6 weeks");
+      expect(result.text).toContain("3");
+    });
+
+    it("keeps marriage license questions out of the driver's license overview", () => {
+      expect(answerFromKnowledgeBase("how do I get a marriage license?").text).toContain(
+        "marriage"
+      );
+    });
+  });
+
   it("returns the unavailable message for unrelated questions", () => {
     const result = answerFromKnowledgeBase("1+1");
     expect(result.matched).toBe(false);

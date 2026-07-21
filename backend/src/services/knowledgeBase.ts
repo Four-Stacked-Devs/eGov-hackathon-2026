@@ -1,8 +1,16 @@
+import { computeSummary, nodeById, orderedNodes, RoadmapNode } from "./roadmap";
+
 /**
  * Offline knowledge base for the copilot: hardcoded answers to the permits
  * and certificates citizens most commonly ask about. Used whenever the
  * Anthropic API is not configured or fails, so the chat always answers.
- * First matching topic wins — keep more specific topics above generic ones.
+ *
+ * Driver's-license answers are BUILT FROM the roadmap definition (single
+ * source of truth), so fees and steps always match the route panel.
+ *
+ * Matching is first-hit-wins: named services come first, then the
+ * driver's-license sub-topics, then generic cost/duration/overview keywords —
+ * so "marriage license" hits marriage, not the driver's-license overview.
  */
 
 interface Topic {
@@ -11,13 +19,52 @@ interface Topic {
   answer: string;
 }
 
+function feeLabel(fee: number): string {
+  return fee > 0 ? `₱${fee.toLocaleString("en-PH")}` : "Free";
+}
+
+function nodeAnswer(nodeId: string, extra?: string): string {
+  const node = nodeById(nodeId) as RoadmapNode;
+  return [
+    `**${node.title}** (Step ${node.order} on your route) — ${node.description}`,
+    `**You'll need:**\n${node.requirements.map((r) => `- ${r}`).join("\n")}`,
+    `**How it goes:**\n${node.steps.map((s, i) => `${i + 1}. ${s}`).join("\n")}`,
+    `**Fee:** ${feeLabel(node.fee_php)} · est. ${node.duration_weeks} ${
+      node.duration_weeks === 1 ? "week" : "weeks"
+    }.${extra ? ` ${extra}` : ""}`,
+    "Tap this station on the route panel to file it — your verified ID pre-fills the form.",
+  ].join("\n\n");
+}
+
+const summary = computeSummary(orderedNodes);
+
+const costAnswer = [
+  "Here's the full cost of your driver's-license route:",
+  orderedNodes.map((n) => `- ${n.title}: ${feeLabel(n.fee_php)}`).join("\n"),
+  `**Total: ₱${summary.total_fee_php.toLocaleString("en-PH")}** (demo estimates). Each station on the left shows its own fee.`,
+].join("\n\n");
+
+const durationAnswer = [
+  `End to end, plan for about **${summary.total_weeks_estimate} weeks** and **${summary.office_visits} office visits**:`,
+  orderedNodes
+    .map(
+      (n) =>
+        `- ${n.title}: ~${n.duration_weeks} ${n.duration_weeks === 1 ? "week" : "weeks"}${
+          n.office_visit ? " (office visit)" : ""
+        }`
+    )
+    .join("\n"),
+  "The pacing item to remember: you must hold your Student Permit at least 30 days before taking the license exams.",
+].join("\n\n");
+
+const overviewAnswer = [
+  "Your driver's-license journey is the interactive **route panel on the left** — six stations:",
+  orderedNodes.map((n) => `${n.order}. ${n.title} (${feeLabel(n.fee_php)})`).join("\n"),
+  `Total about ₱${summary.total_fee_php.toLocaleString("en-PH")}, est. ${summary.total_weeks_estimate} weeks, ${summary.office_visits} office visits. Tap the highlighted station to see what's needed and file it in place — your verified ID pre-fills every form.`,
+].join("\n\n");
+
 const TOPICS: Topic[] = [
-  {
-    id: "drivers_license",
-    keywords: ["driver", "lto", "student permit", "non-pro", "nonpro", "lisensya"],
-    answer:
-      "Your driver's-licence journey is the interactive **route panel on the left** — six stations from Medical Certificate to License Release. Tap the highlighted station to see requirements and fees, and file each step in place; your verified ID pre-fills the forms.",
-  },
+  // ── Named services first (so e.g. "marriage license" never hits the DL overview) ──
   {
     id: "marriage_certificate",
     keywords: ["marriage", "wedding", "kasal", "cenomar"],
@@ -102,10 +149,63 @@ const TOPICS: Topic[] = [
     answer:
       "To register a small **business**:\n\n1. Register the business name with DTI (sole proprietor, via bnrs.dti.gov.ph) or SEC (corporation/partnership).\n2. Get a barangay clearance where the business is located.\n3. Apply for the Mayor's/Business Permit at city hall — many LGUs now have online Business One-Stop Shops.\n4. Register with the BIR (Form 1901/1903) for your Certificate of Registration, invoices, and books of accounts.\n5. If hiring, register as an employer with SSS, PhilHealth, and Pag-IBIG.",
   },
+
+  // ── Driver's-license sub-topics, built from the roadmap definition ──
+  {
+    id: "dl_medical",
+    keywords: ["medical"],
+    answer: nodeAnswer("medical_certificate"),
+  },
+  {
+    id: "dl_tdc",
+    keywords: ["tdc", "theoretical"],
+    answer: nodeAnswer("theoretical_driving_course"),
+  },
+  {
+    id: "dl_pdc",
+    keywords: ["pdc", "practical"],
+    answer: nodeAnswer(
+      "practical_driving_course",
+      "Remember: your Student Permit must be held at least 30 days before the license exams."
+    ),
+  },
+  {
+    id: "dl_student_permit",
+    keywords: ["student permit", "permit"],
+    answer: nodeAnswer(
+      "student_permit",
+      "After this, hold the permit at least 30 days while finishing your practical course."
+    ),
+  },
+  {
+    id: "dl_exams",
+    keywords: ["exam", "written", "non-pro", "nonpro"],
+    answer: nodeAnswer("nonpro_license_exam"),
+  },
+  {
+    id: "dl_release",
+    keywords: ["license release", "claim my license", "release"],
+    answer: nodeAnswer("license_release"),
+  },
+  {
+    id: "dl_cost",
+    keywords: ["cost", "fee", "how much", "magkano", "price", "total", "expensive"],
+    answer: costAnswer,
+  },
+  {
+    id: "dl_duration",
+    keywords: ["how long", "gaano", "duration", "weeks", "tagal", "timeline"],
+    answer: durationAnswer,
+  },
+  {
+    id: "dl_overview",
+    keywords: ["driver", "driving", "license", "lto", "lisensya"],
+    answer: overviewAnswer,
+  },
 ];
 
 const UNAVAILABLE_MESSAGE =
-  "That topic **isn't in my offline knowledge yet**. I can currently help with: the driver's license route (left panel), marriage certificates, SSS, passports, National ID replacement, PSA birth certificates, NBI and police clearances, barangay clearance/cedula, TIN (BIR), PhilHealth, Pag-IBIG, voter's registration, postal ID, and business permits.\n\nTap a shortcut below or ask about one of those.";
+  "That topic **isn't in my offline knowledge yet**. I can currently help with: the driver's license route (left panel — steps, fees, timeline), marriage certificates, SSS, passports, National ID replacement, PSA birth certificates, NBI and police clearances, barangay clearance/cedula, TIN (BIR), PhilHealth, Pag-IBIG, voter's registration, postal ID, and business permits.\n\nTap a shortcut below or ask about one of those.";
 
 export function answerFromKnowledgeBase(prompt: string): {
   text: string;

@@ -11,6 +11,7 @@ import { ChatPane, type ChatMessage, type Faq } from "@/components/ChatPane";
 import { Logo } from "@/components/Logo";
 import { NodeModal } from "@/components/NodeModal";
 import { RoutePane } from "@/components/RoutePane";
+import { WorkspaceSkeleton } from "@/components/WorkspaceSkeleton";
 
 function cap(s: string): string {
   return s ? s[0] + s.slice(1).toLowerCase() : s;
@@ -154,17 +155,7 @@ export default function DashboardPage() {
   }
 
   if (loading) {
-    return (
-      <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
-        <div style={{ display: "grid", gap: 12, justifyItems: "center" }}>
-          <Logo size={28} />
-          <div style={{ width: 180, height: 8, borderRadius: 999, background: "var(--line)", overflow: "hidden" }}>
-            <div className="scanline" style={{ position: "static", height: "100%", animation: "none" }} />
-          </div>
-          <span style={{ color: "var(--muted)", fontSize: 13 }}>Loading your workspace…</span>
-        </div>
-      </div>
-    );
+    return <WorkspaceSkeleton />;
   }
 
   if (error || !roadmap || !user) {

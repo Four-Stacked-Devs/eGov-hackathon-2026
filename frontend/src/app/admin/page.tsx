@@ -46,7 +46,13 @@ export default function AdminPage() {
       <p className="mb-6 text-sm text-slate-500">Refreshes every 10 seconds.</p>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}
-      {!status && !error && <p className="text-sm text-slate-500">Loading…</p>}
+      {!status && !error && (
+        <div className="space-y-3">
+          {[...Array(5)].map((_, i) => (
+            <div key={i} className="skeleton" style={{ height: 28, width: `${90 - i * 12}%` }} />
+          ))}
+        </div>
+      )}
 
       {status && (
         <div className="space-y-6">
