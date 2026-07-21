@@ -10,7 +10,11 @@ import {
   isVerified,
 } from "../clients/everify";
 import { sendSms } from "../clients/emessage";
-import { FIXTURE_EVERIFY_PROFILE, FIXTURE_SSO_PROFILE } from "../mocks/fixtures";
+import {
+  FIXTURE_EVERIFY_PROFILE,
+  FIXTURE_SSO_PROFILE,
+  matchesEverifyFixture,
+} from "../mocks/fixtures";
 import { createSession, findOrCreateUser, SanitizedProfile } from "../store";
 import { initialProgress } from "../services/roadmap";
 import { requireSession, setSessionCookie } from "../middleware/session";
@@ -163,9 +167,22 @@ function buildQueryPayload(body: VerifyBodyT): EverifyQueryPayload {
 authRouter.post("/auth/verify", async (req, res, next) => {
   try {
     const body = VerifyBody.parse(req.body);
+    // The fixture only verifies the one demo identity — anyone else gets
+    // the same rejection a real PhilSys mismatch would produce.
+    const rejectAsMismatch = () => {
+      res.status(422).json({
+        ok: false,
+        error: "We couldn't match those details with PhilSys.",
+        hint: "Check spelling and birth date.",
+      });
+    };
     let data: EverifyQueryData;
     let simulated: boolean;
     if (env.EVERIFY_MOCK) {
+      if (!matchesEverifyFixture(body)) {
+        rejectAsMismatch();
+        return;
+      }
       data = FIXTURE_EVERIFY_PROFILE;
       simulated = true;
     } else {
@@ -174,6 +191,11 @@ authRouter.post("/auth/verify", async (req, res, next) => {
         simulated = false;
       } catch (err) {
         if (isNetworkOrTimeout(err)) {
+          if (!matchesEverifyFixture(body)) {
+            console.warn("[everify] gov API unreachable and details don't match the demo fixture — rejecting");
+            rejectAsMismatch();
+            return;
+          }
           console.warn("[everify] gov API unreachable — degrading to fixture");
           data = FIXTURE_EVERIFY_PROFILE;
           simulated = true;

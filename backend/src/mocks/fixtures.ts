@@ -14,6 +14,24 @@ export const FIXTURE_EVERIFY_PROFILE = {
   full_address: "123 Sample Street, Sample Barangay, Sample City, Sample Province, Philippines, 1000"
 };
 
+/**
+ * The offline/mock fallback only ever verifies the one demo identity above —
+ * any other typed details are rejected exactly like a real PhilSys mismatch,
+ * so the demo can't be tricked into "verifying" arbitrary people.
+ */
+export function matchesEverifyFixture(details: {
+  first_name: string;
+  last_name: string;
+  birth_date: string;
+}): boolean {
+  const norm = (value: string) => value.trim().toUpperCase();
+  return (
+    norm(details.first_name) === norm(FIXTURE_EVERIFY_PROFILE.first_name) &&
+    norm(details.last_name) === norm(FIXTURE_EVERIFY_PROFILE.last_name) &&
+    details.birth_date.trim() === FIXTURE_EVERIFY_PROFILE.birth_date
+  );
+}
+
 export const FIXTURE_SSO_PROFILE = {
   first_name: "Keith Justin",
   middle_name: "Leyned",
