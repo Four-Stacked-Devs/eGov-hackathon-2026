@@ -31,6 +31,36 @@ type Phase = "idle" | "scanning" | "verifying" | "done";
 
 const todayIso = new Date().toISOString().slice(0, 10);
 
+/** Decode an opaque eKYC SDK error into a readable message + actionable hint. */
+function describeEkycError(err: unknown): { message: string; hint: string } {
+  const raw = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (/\b401\b|unauthor/i.test(raw)) {
+    return {
+      message: "The face-scan service rejected the key (401 Unauthorized).",
+      hint: "NEXT_PUBLIC_EKYC_PUBKEY is invalid or not authorized for this app — try a different key or get the real eKYC pubKey from the hackathon organizers.",
+    };
+  }
+  if (/\b403\b|forbidden/i.test(raw)) {
+    return {
+      message: "The face-scan service refused this origin (403 Forbidden).",
+      hint: "The pubKey is likely locked to a registered domain — test on the deployed Vercel URL rather than localhost.",
+    };
+  }
+  if (/network|failed to fetch|load resource|networkerror/i.test(raw)) {
+    return {
+      message: "Couldn't reach the face-scan service.",
+      hint: "Check your connection, or the liveness SDK/API may be unavailable.",
+    };
+  }
+  if (/cancel|closed|abort/i.test(raw)) {
+    return { message: "Face check was cancelled before it completed.", hint: "" };
+  }
+  return {
+    message: raw || "Face check was cancelled or didn't complete.",
+    hint: "",
+  };
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const [firstName, setFirstName] = useState("");
@@ -58,24 +88,39 @@ export default function RegisterPage() {
     }
     const pubKey = (process.env.NEXT_PUBLIC_EKYC_PUBKEY ?? "").trim();
     if (pubKey === "") {
+      console.error("[eKYC] NEXT_PUBLIC_EKYC_PUBKEY is empty — cannot start a scan.");
       setError(
         "Face verification isn't configured — NEXT_PUBLIC_EKYC_PUBKEY is missing. Set it in the environment and redeploy."
       );
       return;
     }
+    // Public key, but log a masked form so you can confirm *which* key is
+    // loaded without pasting the full value into the console.
+    const maskedKey = `${pubKey.slice(0, 8)}…(${pubKey.length} chars)`;
     setPhase("scanning");
     let session_id: string;
     try {
+      console.info("[eKYC] creating liveness session", {
+        pubKey: maskedKey,
+        origin: window.location.origin,
+      });
       const response = await window.eKYC().start({ pubKey });
       // Use ONLY result.session_id — the photo/photo_url are never uploaded.
       session_id = response.result.session_id;
+      console.info("[eKYC] liveness session created", { session_id });
     } catch (err) {
-      // The SDK swallows detail behind a generic UI otherwise — log the real
-      // error so a bad pubKey / denied camera / cancel are distinguishable.
-      console.error("[eKYC] face scan failed:", err);
-      const detail =
-        err instanceof Error ? err.message : typeof err === "string" ? err : "";
-      setError(detail || "Face check was cancelled or didn't complete.");
+      const { message, hint } = describeEkycError(err);
+      // Structured log so a bad pubKey (401) / origin lock (403) / denied
+      // camera / user cancel are all distinguishable at a glance.
+      console.error("[eKYC] face scan failed", {
+        summary: message,
+        name: err instanceof Error ? err.name : typeof err,
+        detail: err instanceof Error ? err.message : String(err),
+        pubKeyUsed: maskedKey,
+        origin: window.location.origin,
+        raw: err,
+      });
+      setError(hint ? `${message} ${hint}` : message);
       setPhase("idle");
       return;
     }
