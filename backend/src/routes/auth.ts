@@ -202,7 +202,12 @@ authRouter.post("/auth/verify", async (req, res, next) => {
       // Server-console-only diagnostic of the real upstream shape,
       // with the backend-only secret fields stripped first.
       const { token: _token, reference: _reference, face_url: _faceUrl, ...redacted } = data;
-      console.error("[everify] verification failed or unexpected response shape:", JSON.stringify(redacted));
+      console.error(
+        data.verified === false
+          ? "[everify] no match — eVerify rejected this attempt:"
+          : "[everify] unexpected response shape:",
+        JSON.stringify(redacted)
+      );
       res.status(422).json({
         ok: false,
         error:
@@ -214,6 +219,9 @@ authRouter.post("/auth/verify", async (req, res, next) => {
       return;
     }
     const user = findOrCreateUser(sanitizeEverifyProfile(data), initialProgress());
+    console.log(
+      `[everify] verified ${user.profile.full_name} (code ${typeof data.code === "string" ? data.code : "profile-bearing response"})`
+    );
     setSessionCookie(res, createSession(user));
     sendSms(
       user.profile.mobile_number,
