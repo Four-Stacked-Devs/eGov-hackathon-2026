@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { BadgeCheck } from "lucide-react";
+import { BadgeCheck, MapPin, MessageSquare } from "lucide-react";
 import { apiGet, apiPost } from "@/lib/api";
 import type {
   ChatResult, RoadmapData, RoadmapNode, SubmitResult, UserProfile,
@@ -26,6 +26,8 @@ export default function DashboardPage() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [busy, setBusy] = useState(false);
   const [routeShown, setRouteShown] = useState(false);
+  // Mobile only: which pane is visible when a route exists (desktop shows both).
+  const [mobileView, setMobileView] = useState<"chat" | "route">("route");
   const [activeNode, setActiveNode] = useState<RoadmapNode | null>(null);
   const startedRef = useRef(false);
 
@@ -78,6 +80,7 @@ export default function DashboardPage() {
       return;
     }
     setRouteShown(true);
+    setMobileView("route"); // explicit license intent → show the map on mobile
     const intro: ChatMessage = {
       role: "assistant",
       content: `Great goal, ${firstName}! I've mapped your journey to a Non-Professional Driver's Licence — see the route panel on the left. Six stations; tap each to see what's needed and file it in place. Your verified ID fills the forms for you.`,
@@ -114,8 +117,10 @@ export default function DashboardPage() {
       return;
     }
     // The conversation turned to the driver's license — reveal the route panel.
+    // Keep the mobile user on chat so they can read the answer they just got.
     if (res.data.show_route && !routeShown) {
       setRouteShown(true);
+      setMobileView("chat");
     }
     push({ role: "assistant", content: res.data.text, simulated: res.data.simulated });
   }
@@ -186,7 +191,24 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className={routeShown ? "split" : "chat-only"}>
+      {routeShown && (
+        <div className="mobile-tabs">
+          <button
+            className={"mobile-tab" + (mobileView === "route" ? " active" : "")}
+            onClick={() => setMobileView("route")}
+          >
+            <MapPin size={14} /> Route
+          </button>
+          <button
+            className={"mobile-tab" + (mobileView === "chat" ? " active" : "")}
+            onClick={() => setMobileView("chat")}
+          >
+            <MessageSquare size={14} /> Chat
+          </button>
+        </div>
+      )}
+
+      <div className={routeShown ? `split show-${mobileView}` : "chat-only"}>
         {routeShown && (
           <aside className="route-pane">
             <RoutePane roadmap={roadmap} onOpen={setActiveNode} />

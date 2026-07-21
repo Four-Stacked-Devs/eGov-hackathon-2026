@@ -122,14 +122,35 @@
 .split { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 0; flex: 1; min-height: 0; }
 /* Chat-only (ChatGPT-like) layout before the route is revealed */
 .chat-only { display: flex; flex-direction: column; flex: 1; min-height: 0; }
-.route-pane { border-right: 1px solid var(--line); background: #f7faff; overflow-y: auto; min-height: 0; animation: rise 0.25s ease; }
+.route-pane { border-right: 1px solid var(--line); background: #f7faff; overflow-y: auto; min-width: 0; min-height: 0; animation: rise 0.25s ease; }
 /* flex:1 keeps the pane full-height in the chat-only column so the
    composer stays pinned to the bottom of the viewport; harmless as a
    grid item in .split */
-.chat-pane { display: flex; flex-direction: column; flex: 1; min-height: 0; background: var(--paper); }
+.chat-pane { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; background: var(--paper); }
+/* Long words / URLs in chat bubbles must wrap, never widen the column. */
+.chat-pane .msg { min-width: 0; }
+.chat-pane .msg > div { min-width: 0; }
+.chat-pane .msg,
+.chat-pane .msg * { overflow-wrap: anywhere; }
+/* Mobile pane toggle — hidden on desktop, shown when a route exists. */
+.mobile-tabs { display: none; }
 @media (max-width: 860px) {
-  .split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .route-pane { border-right: 0; border-bottom: 1px solid var(--line); max-height: 42vh; }
+  /* One full-height pane at a time; minmax(0,..) stops content overflow. */
+  .split { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); }
+  .route-pane { border-right: 0; max-height: none; }
+  .mobile-tabs {
+    display: flex; gap: 6px; padding: 8px 12px; background: #fff;
+    border-bottom: 1px solid var(--line); flex: 0 0 auto;
+  }
+  .mobile-tab {
+    flex: 1; padding: 9px; border-radius: 9px; border: 1px solid var(--line);
+    background: #fff; font: inherit; font-weight: 600; font-size: 13px;
+    color: var(--muted); cursor: pointer; display: inline-flex; gap: 6px;
+    align-items: center; justify-content: center;
+  }
+  .mobile-tab.active { background: var(--route); color: #fff; border-color: var(--route); }
+  .split.show-route .chat-pane { display: none; }
+  .split.show-chat .route-pane { display: none; }
 }
 /* Skeleton shimmer */
 .skeleton {
