@@ -1,26 +1,26 @@
 export const FIXTURE_EVERIFY_PROFILE = {
   code: "AAA000",
-  full_name: "JUAN SANTOS DELA CRUZ",
-  first_name: "JUAN",
-  middle_name: "SANTOS",
-  last_name: "DELA CRUZ",
+  full_name: "KEITH JUSTIN LEYNES NARIO",
+  first_name: "KEITH JUSTIN",
+  middle_name: "LEYNED",
+  last_name: "NARIO",
   suffix: null,
   gender: "Male",
   marital_status: "Single",
   blood_type: "A",
-  email: "N/A",
-  mobile_number: "639090000000",
-  birth_date: "1990-01-01",
+  email: "nariokeithjustin12@gmail.com",
+  mobile_number: "639566322071",
+  birth_date: "2005-12-09",
   full_address: "123 Sample Street, Sample Barangay, Sample City, Sample Province, Philippines, 1000"
 };
 
 export const FIXTURE_SSO_PROFILE = {
-  first_name: "Juan",
-  middle_name: "Santos",
-  last_name: "Dela Cruz",
-  birth_date: "1990-01-01",
-  email: "juan.delacruz@example.ph",
-  mobile_number: "+639090000000",
+  first_name: "Keith Justin",
+  middle_name: "Leyned",
+  last_name: "Nario",
+  birth_date: "2005-12-09",
+  email: "nariokeithjustin12@gmail.com",
+  mobile_number: "+639566322071",
   full_address: "123 Sample Street, Sample Barangay, Sample City, Philippines, 1000"
 };
 

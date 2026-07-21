@@ -76,7 +76,12 @@ export default function RegisterPage() {
       session_id,
     });
     if (!res.ok) {
-      setError("We couldn't match those details with PhilSys. Check spelling and birth date.");
+      // Show the backend's specific reason when it has one (e.g. a liveness
+      // error vs. a PhilSys mismatch), falling back to the generic copy.
+      const detail = [res.error, res.hint].filter(Boolean).join(" ");
+      setError(
+        detail || "We couldn't match those details with PhilSys. Check spelling and birth date."
+      );
       setPhase("idle");
       return;
     }

@@ -173,10 +173,30 @@ authRouter.post("/auth/verify", async (req, res, next) => {
         data = await everifyQuery(buildQueryPayload(body));
         simulated = false;
       } catch (err) {
-        if (!isNetworkOrTimeout(err)) throw err;
-        console.warn("[everify] gov API unreachable — degrading to fixture");
-        data = FIXTURE_EVERIFY_PROFILE;
-        simulated = true;
+        if (isNetworkOrTimeout(err)) {
+          console.warn("[everify] gov API unreachable — degrading to fixture");
+          data = FIXTURE_EVERIFY_PROFILE;
+          simulated = true;
+        } else if (axios.isAxiosError(err) && err.response && err.response.status < 500) {
+          // The live API reports failures as 4xx with citizen-readable
+          // messages (e.g. "Face liveness encountered an error.") —
+          // pass those through instead of a generic error.
+          const upstream = err.response.data as Record<string, unknown> | null;
+          console.error(
+            `[everify] rejected query (${err.response.status}): ${JSON.stringify(upstream ?? null)}`
+          );
+          res.status(422).json({
+            ok: false,
+            error:
+              typeof upstream?.message === "string"
+                ? upstream.message
+                : "We couldn't match those details with PhilSys.",
+            hint: "Check spelling and birth date, then try again.",
+          });
+          return;
+        } else {
+          throw err;
+        }
       }
     }
     if (!isVerified(data)) {
@@ -186,7 +206,10 @@ authRouter.post("/auth/verify", async (req, res, next) => {
       console.error("[everify] verification failed or unexpected response shape:", JSON.stringify(redacted));
       res.status(422).json({
         ok: false,
-        error: "We couldn't match those details with PhilSys.",
+        error:
+          typeof data.message === "string"
+            ? data.message
+            : "We couldn't match those details with PhilSys.",
         hint: "Check spelling and birth date.",
       });
       return;
