@@ -20,16 +20,13 @@ const EnvSchema = z.object({
   EVERIFY_CLIENT_ID: z.string().min(1),
   EVERIFY_CLIENT_SECRET: z.string().min(1),
 
-  // AI copilot — Anthropic API. When the key is absent here, the SDK still
-  // falls back to ANTHROPIC_API_KEY / ANTHROPIC_AUTH_TOKEN in the shell env.
-  ANTHROPIC_API_KEY: z.string().optional(),
-  ANTHROPIC_MODEL: z.string().default("claude-opus-4-8"),
+  EGOVAI_BASE_URL: z.string().min(1),
+  EGOVAI_ACCESS_CODE: z.string().min(1),
 
   EMESSAGE_BASE_URL: z.string().min(1),
   EMESSAGE_TOKEN: z.string().min(1),
 
   SSO_MOCK: boolFlag,
-  EVERIFY_MOCK: boolFlag,
   SMS_MOCK: boolFlag,
 });
 

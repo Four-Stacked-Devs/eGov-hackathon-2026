@@ -1,78 +1,61 @@
-import Anthropic from "@anthropic-ai/sdk";
+import axios from "axios";
 import { Router } from "express";
 import { z } from "zod";
-import { anthropicConfigured, claudeChat, ChatTurn } from "../clients/claude";
+import { aiGenerate } from "../clients/egovai";
 import { requireSession } from "../middleware/session";
 import { answerFromKnowledgeBase } from "../services/knowledgeBase";
-import { nodeById, orderedNodes } from "../services/roadmap";
+import { nodeById } from "../services/roadmap";
 
 export const aiRouter = Router();
 
 const ChatBody = z.object({
   prompt: z.string().min(1).max(500),
   node_id: z.string().optional(),
-  history: z
-    .array(
-      z.object({
-        role: z.enum(["user", "assistant"]),
-        content: z.string().min(1).max(4000),
-      })
-    )
-    .max(12)
-    .optional(),
 });
 
 aiRouter.post("/ai/chat", requireSession, async (req, res, next) => {
   try {
-    const { prompt, node_id, history = [] } = ChatBody.parse(req.body);
-    const user = req.user!;
-    const nodeTitle = node_id ? nodeById(node_id)?.title : undefined;
-    const routeContext = orderedNodes
-      .map(
-        (n) =>
-          `${n.order}. ${n.title} (${n.fee_php > 0 ? `₱${n.fee_php}` : "free"}) — ${
-            user.roadmap[n.id]?.status ?? "locked"
-          }`
-      )
-      .join("; ");
+    const { prompt, node_id } = ChatBody.parse(req.body);
+    const kb = answerFromKnowledgeBase(prompt);
 
-    const system = [
-      "You are HaviFlow, a warm, concise copilot for Philippine government services.",
-      "Answer questions about PH government processes practically in 2-5 sentences; use short Markdown lists when steps help.",
-      "The app shows an interactive driver's-license route panel on the left — refer citizens there for that journey instead of re-listing all its steps.",
-      "Do not invent exact fees beyond common public knowledge; when unsure, say so and point to the official source.",
-      `The citizen is ${user.profile.first_name}, identity verified via their Digital National ID (Once-Only Policy).`,
-      `Driver's-license route stations and their status: ${routeContext}.`,
-      `The citizen is currently at step: ${nodeTitle ?? "starting out"}.`,
-    ].join("\n");
-
-    // The messages array must start with a user turn — drop any leading
-    // assistant greeting the browser included.
-    const firstUserIndex = history.findIndex((turn) => turn.role === "user");
-    const turns: ChatTurn[] = [
-      ...(firstUserIndex === -1 ? [] : history.slice(firstUserIndex)),
-      { role: "user", content: prompt },
-    ];
-
-    // No API key → answer from the offline knowledge base (marked simulated
-    // so the sandbox badge shows) instead of failing.
-    if (!anthropicConfigured()) {
-      console.warn("[claude] not configured — answering from the offline knowledge base");
-      res.json({ ok: true, data: { text: answerFromKnowledgeBase(prompt).text, simulated: true } });
+    // Only driver's-license conversations spend eGov AI credits; every other
+    // known topic answers from the offline knowledge base, and unknown
+    // topics get the unavailable message.
+    const isDriversLicense = kb.topic?.startsWith("dl_") ?? false;
+    if (!isDriversLicense) {
+      res.json({ ok: true, data: { text: kb.text, simulated: true } });
       return;
     }
 
+    const nodeTitle = node_id ? nodeById(node_id)?.title : undefined;
+    const constructed = [
+      "You are a Philippine government services guide helping a citizen get a driver's license.",
+      `The citizen is currently at step: ${nodeTitle ?? "starting out"}.`,
+      "Answer concisely with official requirements and fees where known.",
+      `Citizen question: ${prompt}`,
+    ].join("\n");
+
     try {
-      const text = await claudeChat(system, turns);
-      res.json({ ok: true, data: { text, simulated: false } });
+      const { text, credits_remaining } = await aiGenerate(constructed);
+      res.json({
+        ok: true,
+        data: {
+          text,
+          ...(credits_remaining !== undefined ? { credits_remaining } : {}),
+          simulated: false,
+        },
+      });
     } catch (err) {
-      // API errors also degrade to the knowledge base — the copilot always answers.
-      if (err instanceof Anthropic.APIError) {
-        console.error(`[claude] API error ${err.status ?? "network"}: ${err.message} — degrading to knowledge base`);
-        res.json({ ok: true, data: { text: answerFromKnowledgeBase(prompt).text, simulated: true } });
-        return;
-      }
-      throw err;
+      // eGov AI unreachable/errored — the roadmap-derived answer still ships.
+      console.error(
+        "[egovai] chat failed — degrading to knowledge base:",
+        axios.isAxiosError(err)
+          ? `${err.response?.status ?? err.code}`
+          : err instanceof Error
+            ? err.message
+            : err
+      );
+      res.json({ ok: true, data: { text: kb.text, simulated: true } });
     }
   } catch (err) {
     next(err);

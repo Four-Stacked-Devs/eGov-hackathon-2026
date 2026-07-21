@@ -10,11 +10,7 @@ import {
   isVerified,
 } from "../clients/everify";
 import { sendSms } from "../clients/emessage";
-import {
-  FIXTURE_EVERIFY_PROFILE,
-  FIXTURE_SSO_PROFILE,
-  matchesEverifyFixture,
-} from "../mocks/fixtures";
+import { FIXTURE_SSO_PROFILE } from "../mocks/fixtures";
 import { createSession, findOrCreateUser, SanitizedProfile } from "../store";
 import { initialProgress } from "../services/roadmap";
 import { requireSession, setSessionCookie } from "../middleware/session";
@@ -164,83 +160,43 @@ function buildQueryPayload(body: VerifyBodyT): EverifyQueryPayload {
   return payload;
 }
 
+// Verification uses the live eVerify API exclusively — there is no mock,
+// fixture, or failsafe path. If eVerify says no, the answer is no.
 authRouter.post("/auth/verify", async (req, res, next) => {
   try {
     const body = VerifyBody.parse(req.body);
-    // The fixture only verifies the one demo identity — anyone else gets
-    // the same rejection a real PhilSys mismatch would produce.
-    const rejectAsMismatch = () => {
-      res.status(422).json({
-        ok: false,
-        error: "We couldn't match those details with PhilSys.",
-        hint: "Check spelling and birth date.",
-      });
-    };
     let data: EverifyQueryData;
-    let simulated: boolean;
-    if (env.EVERIFY_MOCK) {
-      if (!matchesEverifyFixture(body)) {
-        rejectAsMismatch();
+    try {
+      data = await everifyQuery(buildQueryPayload(body));
+    } catch (err) {
+      if (isNetworkOrTimeout(err)) {
+        console.error("[everify] gov API unreachable");
+        res.status(503).json({
+          ok: false,
+          error: "The verification service is unreachable right now.",
+          hint: "Check your connection and try again in a moment.",
+        });
         return;
       }
-      data = FIXTURE_EVERIFY_PROFILE;
-      simulated = true;
-    } else {
-      try {
-        data = await everifyQuery(buildQueryPayload(body));
-        simulated = false;
-      } catch (err) {
-        if (isNetworkOrTimeout(err)) {
-          if (!matchesEverifyFixture(body)) {
-            console.warn("[everify] gov API unreachable and details don't match the demo fixture — rejecting");
-            rejectAsMismatch();
-            return;
-          }
-          console.warn("[everify] gov API unreachable — degrading to fixture");
-          data = FIXTURE_EVERIFY_PROFILE;
-          simulated = true;
-        } else if (axios.isAxiosError(err) && err.response && err.response.status < 500) {
-          const upstream = err.response.data as Record<string, unknown> | null;
-          if (matchesEverifyFixture(body)) {
-            // Failsafe: the demo identity must never fail on stage, even
-            // when the live API rejects the scan.
-            console.warn(
-              `[everify] live API rejected the demo identity (${err.response.status}) — failsafe fixture engaged: ${JSON.stringify(upstream ?? null)}`
-            );
-            data = FIXTURE_EVERIFY_PROFILE;
-            simulated = true;
-          } else {
-            // The live API reports failures as 4xx with citizen-readable
-            // messages (e.g. "Face liveness encountered an error.") —
-            // pass those through instead of a generic error.
-            console.error(
-              `[everify] rejected query (${err.response.status}): ${JSON.stringify(upstream ?? null)}`
-            );
-            res.status(422).json({
-              ok: false,
-              error:
-                typeof upstream?.message === "string"
-                  ? upstream.message
-                  : "We couldn't match those details with PhilSys.",
-              hint: "Check spelling and birth date, then try again.",
-            });
-            return;
-          }
-        } else {
-          throw err;
-        }
+      if (axios.isAxiosError(err) && err.response && err.response.status < 500) {
+        // The live API reports failures as 4xx with citizen-readable
+        // messages (e.g. "Face liveness encountered an error.") —
+        // pass those through instead of a generic error.
+        const upstream = err.response.data as Record<string, unknown> | null;
+        console.error(
+          `[everify] rejected query (${err.response.status}): ${JSON.stringify(upstream ?? null)}`
+        );
+        res.status(422).json({
+          ok: false,
+          error:
+            typeof upstream?.message === "string"
+              ? upstream.message
+              : "We couldn't match those details with PhilSys.",
+          hint: "Check spelling and birth date, then try again.",
+        });
+        return;
       }
-    }
-    if (!isVerified(data) && matchesEverifyFixture(body)) {
-      // Failsafe: a 200 body that doesn't verify still must not fail the
-      // demo identity.
-      const { token: _t, reference: _r, face_url: _f, ...redacted } = data;
-      console.warn(
-        "[everify] live API did not verify the demo identity — failsafe fixture engaged:",
-        JSON.stringify(redacted)
-      );
-      data = FIXTURE_EVERIFY_PROFILE;
-      simulated = true;
+      throw err;
     }
     if (!isVerified(data)) {
       // Server-console-only diagnostic of the real upstream shape,
@@ -263,7 +219,7 @@ authRouter.post("/auth/verify", async (req, res, next) => {
       user.profile.mobile_number,
       `Welcome to HaviFlow, ${user.profile.first_name}! Your driver's license roadmap is ready.`
     );
-    res.json({ ok: true, data: { user: user.profile, simulated } });
+    res.json({ ok: true, data: { user: user.profile, simulated: false } });
   } catch (err) {
     next(err);
   }

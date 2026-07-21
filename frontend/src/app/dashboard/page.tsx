@@ -95,18 +95,12 @@ export default function DashboardPage() {
   }
 
   async function send(text: string) {
-    // Recent turns travel with the prompt so the copilot keeps conversational
-    // context (error bubbles excluded).
-    const history = messages
-      .filter((m) => !m.isError)
-      .slice(-8)
-      .map((m) => ({ role: m.role, content: m.content }));
     push({ role: "user", content: text });
     setBusy(true);
+    // Stateless per message — only the prompt and current node id are sent.
     const activeNodeId = roadmap?.nodes.find((n) => n.status === "active")?.id;
     const res = await apiPost<ChatResult>("/ai/chat", {
       prompt: text,
-      history,
       ...(activeNodeId ? { node_id: activeNodeId } : {}),
     });
     setBusy(false);

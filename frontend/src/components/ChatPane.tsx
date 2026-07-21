@@ -148,7 +148,7 @@ export function ChatPane({ messages, busy, onSend, onFaq }: ChatPaneProps) {
             </button>
           </div>
           <div style={{ fontSize: 11, color: "var(--muted)", textAlign: "center", marginTop: 8 }}>
-            Answers are informational; LTO submissions are simulated and labelled. Powered by Claude.
+            Answers are informational; LTO submissions are simulated and labelled. Powered by eGov AI.
           </div>
         </div>
       </div>

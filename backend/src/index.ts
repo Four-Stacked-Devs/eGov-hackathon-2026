@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import { env } from "./env"; // fail-fast env validation runs on import
 import { attachSession } from "./middleware/session";
 import { errorMiddleware } from "./middleware/error";
-import { anthropicConfigured } from "./clients/claude";
+import { egovaiTokens } from "./clients/egovai";
 import { authRouter } from "./routes/auth";
 import { roadmapRouter } from "./routes/roadmap";
 import { formsRouter } from "./routes/forms";
@@ -26,10 +26,13 @@ app.use(adminRouter);
 
 app.use(errorMiddleware);
 
-function boot(): void {
-  if (!anthropicConfigured()) {
-    console.warn(
-      "[boot] ANTHROPIC_API_KEY is not set — the AI copilot will return a 'not configured' error until it is."
+async function boot(): Promise<void> {
+  try {
+    await egovaiTokens.getToken();
+  } catch (err) {
+    console.error(
+      "[boot] eGov AI token warm-up failed — driver's-license chat will degrade to the knowledge base:",
+      err instanceof Error ? err.message : err
     );
   }
   app.listen(env.PORT, () => {
@@ -37,4 +40,4 @@ function boot(): void {
   });
 }
 
-boot();
+void boot();

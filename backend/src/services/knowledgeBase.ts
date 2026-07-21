@@ -207,15 +207,19 @@ const TOPICS: Topic[] = [
 const UNAVAILABLE_MESSAGE =
   "That topic **isn't in my offline knowledge yet**. I can currently help with: the driver's license route (left panel — steps, fees, timeline), marriage certificates, SSS, passports, National ID replacement, PSA birth certificates, NBI and police clearances, barangay clearance/cedula, TIN (BIR), PhilHealth, Pag-IBIG, voter's registration, postal ID, and business permits.\n\nTap a shortcut below or ask about one of those.";
 
-export function answerFromKnowledgeBase(prompt: string): {
+export interface KnowledgeBaseAnswer {
   text: string;
   matched: boolean;
-} {
+  /** Matched topic id (dl_* ids are driver's-license topics), null if unmatched. */
+  topic: string | null;
+}
+
+export function answerFromKnowledgeBase(prompt: string): KnowledgeBaseAnswer {
   const normalized = prompt.toLowerCase();
   for (const topic of TOPICS) {
     if (topic.keywords.some((keyword) => normalized.includes(keyword))) {
-      return { text: topic.answer, matched: true };
+      return { text: topic.answer, matched: true, topic: topic.id };
     }
   }
-  return { text: UNAVAILABLE_MESSAGE, matched: false };
+  return { text: UNAVAILABLE_MESSAGE, matched: false, topic: null };
 }
