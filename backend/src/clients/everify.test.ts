@@ -22,7 +22,29 @@ describe("isVerified", () => {
     expect(isVerified({ code: "AAA000" })).toBe(true);
   });
 
-  it("rejects non-AAA codes", () => {
+  it("accepts a profile-bearing response with a non-AAA code (live IDB375 case)", () => {
+    expect(
+      isVerified({
+        code: "IDB375",
+        full_name: "KEITH JUSTIN LEYNES NARIO",
+        first_name: "KEITH JUSTIN",
+        last_name: "NARIO",
+        birth_date: "2005-09-12",
+      })
+    ).toBe(true);
+  });
+
+  it("rejects the live no-match shape { verified: false }", () => {
+    expect(isVerified({ verified: false })).toBe(false);
+  });
+
+  it("rejects verified:false even when other fields are present", () => {
+    expect(
+      isVerified({ verified: false, first_name: "X", last_name: "Y", birth_date: "2000-01-01" })
+    ).toBe(false);
+  });
+
+  it("rejects non-AAA codes without a profile", () => {
     expect(isVerified({ code: "BBB123" })).toBe(false);
   });
 

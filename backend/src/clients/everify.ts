@@ -63,9 +63,23 @@ export function extractQueryData(body: unknown): EverifyQueryData | null {
   return obj as EverifyQueryData;
 }
 
-/** Success check per spec: response code starts with "AAA". Safe on any shape. */
+/**
+ * Success check, hardened against the live API's undocumented shapes:
+ * - the spec documents success as code starting with "AAA";
+ * - real successful matches have arrived with other codes (e.g. "IDB375")
+ *   but carrying the full PhilSys profile — the identity record is only
+ *   released on a successful biometric match, so a profile-bearing 200
+ *   counts as verified;
+ * - real no-matches have arrived as { "verified": false } with no profile.
+ */
 export function isVerified(data: EverifyQueryData): boolean {
-  return typeof data.code === "string" && data.code.startsWith("AAA");
+  if (data.verified === false) return false;
+  if (typeof data.code === "string" && data.code.startsWith("AAA")) return true;
+  return (
+    typeof data.first_name === "string" &&
+    typeof data.last_name === "string" &&
+    typeof data.birth_date === "string"
+  );
 }
 
 export async function everifyQuery(
