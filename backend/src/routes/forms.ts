@@ -43,7 +43,7 @@ formsRouter.post("/forms/submit", requireSession, async (req, res, next) => {
     const nextTitle = nextId ? nodeById(nextId)?.title ?? nextId : "None — journey complete!";
     sendSms(
       user.profile.mobile_number,
-      `GabAI: Your ${nodeTitle} application ${reference_no} was received. Next step: ${nextTitle}`
+      `HaviFlow: Your ${nodeTitle} application ${reference_no} was received. Next step: ${nextTitle}`
     );
     res.json({
       ok: true,

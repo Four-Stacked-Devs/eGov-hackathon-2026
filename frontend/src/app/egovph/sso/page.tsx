@@ -12,7 +12,7 @@ type Phase = "loading" | "error";
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
       <div className="card" style={{ maxWidth: 420, width: "100%", padding: 26, textAlign: "center" }}>
         <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
           <Logo />

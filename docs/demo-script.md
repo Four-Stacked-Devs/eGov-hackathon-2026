@@ -1,4 +1,4 @@
-# GabAI PH — Demo Script (~2 minutes)
+# HaviFlow — Demo Script (~2 minutes)
 
 1. **[0:00]** Landing on a phone-width window → "Register with Face Verification" → type 3 fields → live face scan → profile auto-fills, every field locked "Managed by eGovPH". Say: *"Real eVerify + Face Liveness — Once-Only Policy in action."* Judge's phone buzzes: welcome SMS. *(Real eMessage.)*
 2. **[0:40]** Roadmap: summary bar "₱4,835 · 6 weeks · 3 office visits". Open Medical Certificate → form already filled → note the amber banner → Submit → confetti → SMS buzzes with reference number.

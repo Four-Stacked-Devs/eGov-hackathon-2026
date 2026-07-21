@@ -13,7 +13,7 @@ export function Logo({ size = 22 }: { size?: number }) {
         <circle cx="20" cy="9" r="2.6" fill="var(--route)" />
       </svg>
       <span style={{ fontWeight: 800, letterSpacing: "-.02em", fontSize: size * 0.82 }}>
-        GabAI
+        HaviFlow
       </span>
     </span>
   );

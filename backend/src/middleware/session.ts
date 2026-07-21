@@ -11,7 +11,7 @@ declare global {
 }
 
 export const attachSession: RequestHandler = (req, _res, next) => {
-  const sessionId = (req.cookies as Record<string, string> | undefined)?.gabai_session;
+  const sessionId = (req.cookies as Record<string, string> | undefined)?.haviflow_session;
   if (sessionId) {
     const user = sessions.get(sessionId);
     if (user) req.user = user;
@@ -28,5 +28,5 @@ export const requireSession: RequestHandler = (req, res, next) => {
 };
 
 export function setSessionCookie(res: Response, sessionId: string): void {
-  res.cookie("gabai_session", sessionId, { httpOnly: true, sameSite: "lax" });
+  res.cookie("haviflow_session", sessionId, { httpOnly: true, sameSite: "lax" });
 }

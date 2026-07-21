@@ -42,7 +42,7 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto w-full max-w-2xl px-4 py-8">
-      <h1 className="text-xl font-bold text-slate-900">GabAI dev status</h1>
+      <h1 className="text-xl font-bold text-slate-900">HaviFlow dev status</h1>
       <p className="mb-6 text-sm text-slate-500">Refreshes every 10 seconds.</p>
 
       {error && <p className="mb-4 text-sm text-red-600">{error}</p>}

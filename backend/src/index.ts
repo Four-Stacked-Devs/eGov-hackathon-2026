@@ -40,7 +40,7 @@ async function boot(): Promise<void> {
     }
   }
   app.listen(env.PORT, () => {
-    console.log(`[boot] GabAI PH backend listening on :${env.PORT}`);
+    console.log(`[boot] HaviFlow backend listening on :${env.PORT}`);
   });
 }
 

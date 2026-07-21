@@ -93,7 +93,7 @@ export default function RegisterPage() {
   const busy = phase === "scanning" || phase === "verifying";
 
   return (
-    <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
       <Script
         src="https://hackathon-everify-face-liveness.e.gov.ph/js/everify-liveness-sdk.min.js"
         strategy="afterInteractive"

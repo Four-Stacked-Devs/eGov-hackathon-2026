@@ -17,7 +17,7 @@ export async function api<T>(path: string, init?: RequestInit): Promise<ApiResul
     });
     return (await res.json()) as ApiResult<T>;
   } catch {
-    return { ok: false, error: "Can't reach the GabAI server.", hint: "Is the backend running?" };
+    return { ok: false, error: "Can't reach the HaviFlow server.", hint: "Is the backend running?" };
   }
 }
 

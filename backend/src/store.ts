@@ -30,7 +30,7 @@ export interface User {
 
 // PROD: replace with Postgres
 export const users = new Map<string, User>(); // key: identity dedupe key
-export const sessions = new Map<string, User>(); // key: gabai_session cookie value
+export const sessions = new Map<string, User>(); // key: haviflow_session cookie value
 
 function identityKey(profile: SanitizedProfile): string {
   return [profile.first_name, profile.last_name, profile.birth_date]

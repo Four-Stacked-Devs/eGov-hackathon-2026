@@ -2,7 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ── Ruta design system (ported from ruta-egov-copilot-1.jsx) ── */
+/* ── HaviFlow design system ── */
 :root {
   --ink: #0c1e33;
   --route: #1e5bc6;
@@ -14,7 +14,7 @@
   --muted: #5b6b85;
   --ok: #0f9d58;
 }
-.ruta {
+.haviflow {
   color: var(--ink);
   background: var(--paper);
   min-height: 100%;

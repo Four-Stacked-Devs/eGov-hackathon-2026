@@ -150,7 +150,7 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+      <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
         <div style={{ display: "grid", gap: 12, justifyItems: "center" }}>
           <Logo size={28} />
           <div style={{ width: 180, height: 8, borderRadius: 999, background: "var(--line)", overflow: "hidden" }}>
@@ -164,7 +164,7 @@ export default function DashboardPage() {
 
   if (error || !roadmap || !user) {
     return (
-      <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
         <div className="card" style={{ maxWidth: 380, width: "100%", padding: 24, textAlign: "center" }}>
           <p style={{ fontSize: 14, color: "var(--muted)" }}>{error ?? "Something went wrong."}</p>
           <button className="btn btn-primary" style={{ justifyContent: "center", width: "100%" }} onClick={() => void load()}>
@@ -178,7 +178,7 @@ export default function DashboardPage() {
   const initials = (user.first_name[0] ?? "") + (user.last_name[0] ?? "");
 
   return (
-    <div className="ruta" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="haviflow" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
       <header style={{ borderBottom: "1px solid var(--line)", background: "#fff", flex: "0 0 auto" }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px" }}>
           <Logo />

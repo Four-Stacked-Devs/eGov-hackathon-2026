@@ -261,7 +261,7 @@ authRouter.post("/auth/verify", async (req, res, next) => {
     setSessionCookie(res, createSession(user));
     sendSms(
       user.profile.mobile_number,
-      `Welcome to GabAI, ${user.profile.first_name}! Your driver's license roadmap is ready.`
+      `Welcome to HaviFlow, ${user.profile.first_name}! Your driver's license roadmap is ready.`
     );
     res.json({ ok: true, data: { user: user.profile, simulated } });
   } catch (err) {

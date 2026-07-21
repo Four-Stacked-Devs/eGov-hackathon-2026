@@ -22,7 +22,7 @@ const FEATURES = [
 
 export default function LandingPage() {
   return (
-    <div className="ruta" style={{ minHeight: "100vh" }}>
+    <div className="haviflow" style={{ minHeight: "100vh" }}>
       <header className="wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px" }}>
         <Logo />
         <span className="chip">
