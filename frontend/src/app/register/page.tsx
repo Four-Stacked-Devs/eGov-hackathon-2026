@@ -38,7 +38,6 @@ export default function RegisterPage() {
   const [birthDate, setBirthDate] = useState("");
   const [middleName, setMiddleName] = useState("");
   const [suffix, setSuffix] = useState("");
-  const [moreOpen, setMoreOpen] = useState(false);
   const [phase, setPhase] = useState<Phase>("idle");
   const [error, setError] = useState<string | null>(null);
   const [welcomeName, setWelcomeName] = useState("");
@@ -46,6 +45,7 @@ export default function RegisterPage() {
 
   const formValid =
     firstName.trim() !== "" &&
+    middleName.trim() !== "" &&
     lastName.trim() !== "" &&
     /^\d{4}-\d{2}-\d{2}$/.test(birthDate) &&
     birthDate <= todayIso;
@@ -72,7 +72,7 @@ export default function RegisterPage() {
     setPhase("verifying");
     const res = await apiPost<AuthResult>("/auth/verify", {
       first_name: firstName.trim(),
-      ...(middleName.trim() !== "" ? { middle_name: middleName.trim() } : {}),
+      middle_name: middleName.trim(),
       last_name: lastName.trim(),
       ...(suffix.trim() !== "" ? { suffix: suffix.trim() } : {}),
       birth_date: birthDate,
@@ -105,8 +105,8 @@ export default function RegisterPage() {
         <div className="eyebrow" style={{ marginTop: 6 }}>Register / Sign in</div>
         <h2 style={{ fontSize: 22, margin: "8px 0 4px", letterSpacing: "-.02em" }}>Prove it&rsquo;s you, once</h2>
         <p style={{ color: "var(--muted)", fontSize: 14, marginTop: 0 }}>
-          Type just three details — your live face scan fills in the rest from PhilSys, and
-          you&rsquo;ll never re-type them.
+          Enter your name as printed on your National ID — your live face scan fills in the
+          rest from PhilSys, and you&rsquo;ll never re-type them.
         </p>
 
         <div
@@ -149,34 +149,27 @@ export default function RegisterPage() {
                 onChange={(e) => setFirstName(e.target.value)} />
             </div>
             <div className="field">
+              <label htmlFor="middle_name">Middle name</label>
+              <input id="middle_name" value={middleName} autoComplete="additional-name"
+                onChange={(e) => setMiddleName(e.target.value)} />
+            </div>
+            <div className="field">
               <label htmlFor="last_name">Last name</label>
               <input id="last_name" value={lastName} autoComplete="family-name"
                 onChange={(e) => setLastName(e.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="suffix">
+                Suffix <span style={{ fontWeight: 500, color: "var(--muted)" }}>(optional — Jr., III…)</span>
+              </label>
+              <input id="suffix" value={suffix} autoComplete="honorific-suffix"
+                onChange={(e) => setSuffix(e.target.value)} />
             </div>
             <div className="field">
               <label htmlFor="birth_date">Birth date</label>
               <input id="birth_date" type="date" max={todayIso} value={birthDate}
                 onChange={(e) => setBirthDate(e.target.value)} />
             </div>
-            <button
-              type="button"
-              onClick={() => setMoreOpen((v) => !v)}
-              style={{ background: "none", border: 0, font: "inherit", fontSize: 12, fontWeight: 600, color: "var(--muted)", cursor: "pointer", textAlign: "left", padding: 0 }}
-            >
-              {moreOpen ? "▾" : "▸"} More (middle name, suffix)
-            </button>
-            {moreOpen && (
-              <>
-                <div className="field">
-                  <label htmlFor="middle_name">Middle name (optional)</label>
-                  <input id="middle_name" value={middleName} onChange={(e) => setMiddleName(e.target.value)} />
-                </div>
-                <div className="field">
-                  <label htmlFor="suffix">Suffix (optional)</label>
-                  <input id="suffix" value={suffix} onChange={(e) => setSuffix(e.target.value)} />
-                </div>
-              </>
-            )}
             {error && (
               <p style={{ fontSize: 13, color: "#B4232C", background: "#FDECEC", borderRadius: 9, padding: "8px 10px", margin: 0 }}>
                 {error}
