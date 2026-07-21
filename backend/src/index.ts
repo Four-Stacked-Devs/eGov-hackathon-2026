@@ -5,6 +5,7 @@ import { env } from "./env"; // fail-fast env validation runs on import
 import { attachSession } from "./middleware/session";
 import { errorMiddleware } from "./middleware/error";
 import { egovaiTokens } from "./clients/egovai";
+import { livenessConfigured } from "./clients/liveness";
 import { authRouter } from "./routes/auth";
 import { roadmapRouter } from "./routes/roadmap";
 import { formsRouter } from "./routes/forms";
@@ -35,6 +36,11 @@ async function boot(): Promise<void> {
       err instanceof Error ? err.message : err
     );
   }
+  console.log(
+    livenessConfigured()
+      ? "[boot] face liveness diagnostic pre-check is ACTIVE"
+      : "[boot] face liveness pre-check inactive (FACE_LIVENESS_BASE_URL / FACE_LIVENESS_API_KEY not set)"
+  );
   app.listen(env.PORT, () => {
     console.log(`[boot] HaviFlow backend listening on :${env.PORT}`);
   });

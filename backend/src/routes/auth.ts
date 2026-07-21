@@ -10,6 +10,7 @@ import {
   isVerified,
 } from "../clients/everify";
 import { sendSms } from "../clients/emessage";
+import { getLivenessResult, livenessConfigured } from "../clients/liveness";
 import { FIXTURE_SSO_PROFILE } from "../mocks/fixtures";
 import { createSession, findOrCreateUser, SanitizedProfile } from "../store";
 import { initialProgress } from "../services/roadmap";
@@ -165,6 +166,25 @@ function buildQueryPayload(body: VerifyBodyT): EverifyQueryPayload {
 authRouter.post("/auth/verify", async (req, res, next) => {
   try {
     const body = VerifyBody.parse(req.body);
+
+    // Diagnostic pre-check via the standalone Face Liveness API: tells us
+    // whether the scan itself passed before we spend an eVerify query.
+    // Only a definitive "failed" blocks; unknown shapes and errors never do.
+    if (livenessConfigured()) {
+      const liveness = await getLivenessResult(body.session_id);
+      console.log(
+        `[liveness] result for ${body.session_id}: passed=${liveness.passed} ${JSON.stringify(liveness.raw)}`
+      );
+      if (liveness.passed === false) {
+        res.status(422).json({
+          ok: false,
+          error: "Your face scan didn't pass the liveness check.",
+          hint: "Try again in good lighting, facing the camera directly.",
+        });
+        return;
+      }
+    }
+
     let data: EverifyQueryData;
     try {
       data = await everifyQuery(buildQueryPayload(body));

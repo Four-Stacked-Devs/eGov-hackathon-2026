@@ -20,6 +20,11 @@ const EnvSchema = z.object({
   EVERIFY_CLIENT_ID: z.string().min(1),
   EVERIFY_CLIENT_SECRET: z.string().min(1),
 
+  // Standalone Face Liveness REST API — optional diagnostic pre-check.
+  // When absent, verification works exactly as before (SDK → eVerify only).
+  FACE_LIVENESS_BASE_URL: z.string().optional(),
+  FACE_LIVENESS_API_KEY: z.string().optional(),
+
   EGOVAI_BASE_URL: z.string().min(1),
   EGOVAI_ACCESS_CODE: z.string().min(1),
 
