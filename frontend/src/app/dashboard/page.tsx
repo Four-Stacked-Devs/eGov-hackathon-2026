@@ -113,6 +113,10 @@ export default function DashboardPage() {
       });
       return;
     }
+    // The conversation turned to the driver's license — reveal the route panel.
+    if (res.data.show_route && !routeShown) {
+      setRouteShown(true);
+    }
     push({ role: "assistant", content: res.data.text, simulated: res.data.simulated });
   }
 
@@ -182,15 +186,12 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      <div className="split">
-        <aside className="route-pane">
-          <RoutePane
-            roadmap={roadmap}
-            routeShown={routeShown}
-            onOpen={setActiveNode}
-            onStartRoute={() => startRoute(null)}
-          />
-        </aside>
+      <div className={routeShown ? "split" : "chat-only"}>
+        {routeShown && (
+          <aside className="route-pane">
+            <RoutePane roadmap={roadmap} onOpen={setActiveNode} />
+          </aside>
+        )}
         <ChatPane messages={messages} busy={busy} onSend={(t) => void send(t)} onFaq={handleFaq} />
       </div>
 

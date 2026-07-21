@@ -1,49 +1,25 @@
 "use client";
 
-import { Car, Check, ChevronRight, Lock, MapPin } from "lucide-react";
+import { Check, ChevronRight, Lock } from "lucide-react";
 import type { RoadmapData, RoadmapNode } from "@/lib/types";
 
 interface RoutePaneProps {
   roadmap: RoadmapData;
-  routeShown: boolean;
   onOpen: (node: RoadmapNode) => void;
-  onStartRoute: () => void;
 }
 
 function feeLabel(fee: number): string {
   return fee > 0 ? `₱${fee.toLocaleString("en-PH")}` : "Free";
 }
 
-/** Left pane: the six real roadmap nodes rendered as route stations. */
-export function RoutePane({ roadmap, routeShown, onOpen, onStartRoute }: RoutePaneProps) {
+/**
+ * Left pane: the six real roadmap nodes rendered as route stations.
+ * Only rendered once the conversation turns to the driver's license —
+ * the workspace starts as chat-only.
+ */
+export function RoutePane({ roadmap, onOpen }: RoutePaneProps) {
   const nodes = roadmap.nodes;
   const doneCount = nodes.filter((n) => n.status === "done").length;
-
-  if (!routeShown) {
-    return (
-      <div
-        style={{
-          padding: 22, display: "flex", flexDirection: "column", alignItems: "center",
-          textAlign: "center", justifyContent: "center", minHeight: "100%",
-        }}
-      >
-        <div style={{ width: 52, height: 52, borderRadius: 16, background: "#EAF0FB", display: "grid", placeItems: "center", marginBottom: 14 }}>
-          <MapPin size={24} color="var(--route)" />
-        </div>
-        <b style={{ fontSize: 15.5 }}>No active route yet</b>
-        <p style={{ color: "var(--muted)", fontSize: 13.5, maxWidth: 260, margin: "6px 0 16px" }}>
-          Ask about a goal — like getting a driver&rsquo;s licence — and your step-by-step
-          route will appear here.
-        </p>
-        <button className="btn btn-primary" onClick={onStartRoute}>
-          <Car size={16} /> Start: Driver&rsquo;s licence
-        </button>
-        <div style={{ marginTop: 14, fontSize: 11.5, color: "var(--muted)" }}>
-          More routes (marriage, SSS, passport…) coming soon — demo has one live route.
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div style={{ padding: "18px 18px 24px" }}>

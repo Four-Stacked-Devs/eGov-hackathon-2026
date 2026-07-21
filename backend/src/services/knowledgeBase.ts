@@ -199,7 +199,10 @@ const TOPICS: Topic[] = [
   },
   {
     id: "dl_overview",
-    keywords: ["driver", "driving", "license", "lto", "lisensya"],
+    keywords: [
+      "driver", "driving", "drive", "car", "motorcycle", "vehicle",
+      "license", "licence", "lisensya", "lto", "magmaneho", "maneho",
+    ],
     answer: overviewAnswer,
   },
 ];
@@ -214,10 +217,19 @@ export interface KnowledgeBaseAnswer {
   topic: string | null;
 }
 
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/** Word-boundary match, so "car" never fires inside "card" or "tin" inside "waiting". */
+function keywordMatches(normalized: string, keyword: string): boolean {
+  return new RegExp(`\\b${escapeRegex(keyword)}\\b`).test(normalized);
+}
+
 export function answerFromKnowledgeBase(prompt: string): KnowledgeBaseAnswer {
   const normalized = prompt.toLowerCase();
   for (const topic of TOPICS) {
-    if (topic.keywords.some((keyword) => normalized.includes(keyword))) {
+    if (topic.keywords.some((keyword) => keywordMatches(normalized, keyword))) {
       return { text: topic.answer, matched: true, topic: topic.id };
     }
   }

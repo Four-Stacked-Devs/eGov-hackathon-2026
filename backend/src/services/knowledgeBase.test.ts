@@ -28,6 +28,22 @@ describe("answerFromKnowledgeBase", () => {
     expect(answerFromKnowledgeBase("HOW TO GET AN SSS NUMBER").matched).toBe(true);
   });
 
+  it("catches semantic driving phrasings without the word 'driver'", () => {
+    for (const prompt of [
+      "I want to learn to drive a car, where do I start?",
+      "can I legally drive a motorcycle?",
+      "gusto ko matutong magmaneho",
+    ]) {
+      const result = answerFromKnowledgeBase(prompt);
+      expect(result.topic?.startsWith("dl_"), prompt).toBe(true);
+    }
+  });
+
+  it("matches on word boundaries — 'card' is not 'car', 'waiting' is not 'tin'", () => {
+    expect(answerFromKnowledgeBase("replace my national id card").topic).toBe("national_id");
+    expect(answerFromKnowledgeBase("I am waiting for something unrelated").matched).toBe(false);
+  });
+
   describe("driver's license sub-topics (built from the roadmap definition)", () => {
     it("answers medical certificate questions with the real node data", () => {
       const result = answerFromKnowledgeBase("What do I need for the medical certificate?");

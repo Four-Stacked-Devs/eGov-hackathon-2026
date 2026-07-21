@@ -66,4 +66,7 @@ export interface ChatResult {
   text: string;
   credits_remaining?: number;
   simulated: boolean;
+  /** True when the conversation is about the driver's license — the
+   *  frontend reveals the roadmap panel on this signal. */
+  show_route?: boolean;
 }

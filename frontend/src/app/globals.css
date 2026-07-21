@@ -110,7 +110,9 @@
 @keyframes spin { to { transform: rotate(360deg); } }
 /* Split workspace layout */
 .split { display: grid; grid-template-columns: minmax(300px, 380px) minmax(0, 1fr); gap: 0; flex: 1; min-height: 0; }
-.route-pane { border-right: 1px solid var(--line); background: #f7faff; overflow-y: auto; min-height: 0; }
+/* Chat-only (ChatGPT-like) layout before the route is revealed */
+.chat-only { display: flex; flex-direction: column; flex: 1; min-height: 0; }
+.route-pane { border-right: 1px solid var(--line); background: #f7faff; overflow-y: auto; min-height: 0; animation: rise 0.25s ease; }
 .chat-pane { display: flex; flex-direction: column; min-height: 0; background: var(--paper); }
 @media (max-width: 860px) {
   .split { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }

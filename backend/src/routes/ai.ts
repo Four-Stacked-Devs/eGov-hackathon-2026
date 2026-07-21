@@ -20,10 +20,11 @@ aiRouter.post("/ai/chat", requireSession, async (req, res, next) => {
 
     // Only driver's-license conversations spend eGov AI credits; every other
     // known topic answers from the offline knowledge base, and unknown
-    // topics get the unavailable message.
+    // topics get the unavailable message. show_route tells the frontend to
+    // reveal the roadmap panel when the conversation turns to the license.
     const isDriversLicense = kb.topic?.startsWith("dl_") ?? false;
     if (!isDriversLicense) {
-      res.json({ ok: true, data: { text: kb.text, simulated: true } });
+      res.json({ ok: true, data: { text: kb.text, simulated: true, show_route: false } });
       return;
     }
 
@@ -43,6 +44,7 @@ aiRouter.post("/ai/chat", requireSession, async (req, res, next) => {
           text,
           ...(credits_remaining !== undefined ? { credits_remaining } : {}),
           simulated: false,
+          show_route: true,
         },
       });
     } catch (err) {
@@ -55,7 +57,7 @@ aiRouter.post("/ai/chat", requireSession, async (req, res, next) => {
             ? err.message
             : err
       );
-      res.json({ ok: true, data: { text: kb.text, simulated: true } });
+      res.json({ ok: true, data: { text: kb.text, simulated: true, show_route: true } });
     }
   } catch (err) {
     next(err);
