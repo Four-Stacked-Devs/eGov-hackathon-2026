@@ -2,7 +2,12 @@ import { Router } from "express";
 import { z } from "zod";
 import { env } from "../env";
 import { ssoAuthenticate } from "../clients/sso";
-import { everifyQuery, EverifyQueryData, EverifyQueryPayload } from "../clients/everify";
+import {
+  everifyQuery,
+  EverifyQueryData,
+  EverifyQueryPayload,
+  isVerified,
+} from "../clients/everify";
 import { sendSms } from "../clients/emessage";
 import { FIXTURE_EVERIFY_PROFILE, FIXTURE_SSO_PROFILE } from "../mocks/fixtures";
 import { createSession, findOrCreateUser, SanitizedProfile } from "../store";
@@ -62,20 +67,31 @@ function mapSsoProfile(raw: Record<string, unknown>): SanitizedProfile {
   };
 }
 
+function str(value: unknown): string | null {
+  return typeof value === "string" && value.trim() !== "" ? value : null;
+}
+
 /** NEVER return data.token, data.reference, or data.face_url to the frontend. */
 function sanitizeEverifyProfile(data: EverifyQueryData): SanitizedProfile {
+  const first_name = str(data.first_name) ?? "";
+  const last_name = str(data.last_name) ?? "";
+  const full_name =
+    str(data.full_name) ??
+    [first_name, str(data.middle_name), last_name, str(data.suffix)]
+      .filter(Boolean)
+      .join(" ");
   return {
-    full_name: data.full_name,
-    first_name: data.first_name,
-    middle_name: data.middle_name ?? null,
-    last_name: data.last_name,
-    suffix: data.suffix ?? null,
-    gender: data.gender ?? null,
-    birth_date: data.birth_date,
-    mobile_number: data.mobile_number ?? null,
-    email: data.email ?? null,
-    full_address: data.full_address ?? null,
-    marital_status: data.marital_status ?? null,
+    full_name,
+    first_name,
+    middle_name: str(data.middle_name),
+    last_name,
+    suffix: str(data.suffix),
+    gender: str(data.gender),
+    birth_date: str(data.birth_date) ?? "",
+    mobile_number: str(data.mobile_number),
+    email: str(data.email),
+    full_address: str(data.full_address),
+    marital_status: str(data.marital_status),
   };
 }
 
@@ -138,8 +154,11 @@ authRouter.post("/auth/verify", async (req, res, next) => {
         simulated = true;
       }
     }
-    // Success check: code starts with "AAA".
-    if (!data.code.startsWith("AAA")) {
+    if (!isVerified(data)) {
+      // Server-console-only diagnostic of the real upstream shape,
+      // with the backend-only secret fields stripped first.
+      const { token: _token, reference: _reference, face_url: _faceUrl, ...redacted } = data;
+      console.error("[everify] verification failed or unexpected response shape:", JSON.stringify(redacted));
       res.status(422).json({
         ok: false,
         error: "We couldn't match those details with PhilSys.",

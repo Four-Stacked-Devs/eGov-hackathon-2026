@@ -32,25 +32,40 @@ export interface EverifyQueryPayload {
   face_liveness_session_id: string; // UUID from eKYC SDK result.session_id
 }
 
+// Real responses have strayed from the documented contract (a 200 body whose
+// data object carried no `code`), so every field is typed unknown and checked
+// at runtime instead of trusted. token/reference/face_url stay backend-only.
 export interface EverifyQueryData {
-  code: string;
-  // Backend-only secrets — these must NEVER be returned to the frontend.
-  token?: string;
-  reference?: string;
-  face_url?: string;
-  full_name: string;
-  first_name: string;
-  middle_name: string | null;
-  last_name: string;
-  suffix: string | null;
-  gender: string | null;
-  marital_status: string | null;
-  blood_type?: string | null;
-  email: string | null;
-  mobile_number: string | null;
-  birth_date: string;
-  full_address: string | null;
+  code?: unknown;
+  token?: unknown;
+  reference?: unknown;
+  face_url?: unknown;
+  full_name?: unknown;
+  first_name?: unknown;
+  middle_name?: unknown;
+  last_name?: unknown;
+  suffix?: unknown;
+  gender?: unknown;
+  marital_status?: unknown;
+  blood_type?: unknown;
+  email?: unknown;
+  mobile_number?: unknown;
+  birth_date?: unknown;
+  full_address?: unknown;
   [key: string]: unknown;
+}
+
+/** Unwraps the documented { data: {...} } envelope, tolerating its absence. */
+export function extractQueryData(body: unknown): EverifyQueryData | null {
+  if (!body || typeof body !== "object") return null;
+  const obj = body as Record<string, unknown>;
+  if (obj.data && typeof obj.data === "object") return obj.data as EverifyQueryData;
+  return obj as EverifyQueryData;
+}
+
+/** Success check per spec: response code starts with "AAA". Safe on any shape. */
+export function isVerified(data: EverifyQueryData): boolean {
+  return typeof data.code === "string" && data.code.startsWith("AAA");
 }
 
 export async function everifyQuery(
@@ -58,10 +73,12 @@ export async function everifyQuery(
 ): Promise<EverifyQueryData> {
   const call = async (): Promise<EverifyQueryData> => {
     const token = await everifyTokens.getToken();
-    const res = await http.post<{ data: EverifyQueryData }>("/api/query", payload, {
+    const res = await http.post<unknown>("/api/query", payload, {
       headers: { Authorization: `Bearer ${token}` },
     });
-    return res.data.data;
+    const data = extractQueryData(res.data);
+    if (!data) throw new Error("eVerify /api/query returned an unparseable body");
+    return data;
   };
   try {
     return await call();
