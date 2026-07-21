@@ -23,20 +23,33 @@ function feeLabel(fee: number): string {
 }
 
 export function NodeModal({ node, user, onClose, onComplete }: NodeModalProps) {
-  const [inputs, setInputs] = useState<Record<string, string>>({});
+  // Auto-filled values seed the form but stay editable — the citizen can
+  // correct anything (e.g. a preferred mailing address) before submitting.
+  const [inputs, setInputs] = useState<Record<string, string>>(() => {
+    const seeded: Record<string, string> = {};
+    for (const field of node.form) {
+      seeded[field.name] = field.prefillFrom ? prefillValue(user, field.prefillFrom) : "";
+    }
+    return seeded;
+  });
   const [state, setState] = useState<"view" | "submitting" | "success">("view");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<SubmitResult | null>(null);
   const readOnly = node.status === "done";
+
+  function isEdited(field: RoadmapNode["form"][number]): boolean {
+    return (
+      field.prefillFrom !== null &&
+      (inputs[field.name] ?? "") !== prefillValue(user, field.prefillFrom)
+    );
+  }
 
   async function submit() {
     setState("submitting");
     setError(null);
     const form: Record<string, string> = {};
     for (const field of node.form) {
-      form[field.name] = field.prefillFrom
-        ? prefillValue(user, field.prefillFrom)
-        : (inputs[field.name] ?? "");
+      form[field.name] = inputs[field.name] ?? "";
     }
     const res = await apiPost<SubmitResult>("/forms/submit", { node_id: node.id, form });
     if (!res.ok) {
@@ -142,31 +155,46 @@ export function NodeModal({ node, user, onClose, onComplete }: NodeModalProps) {
                   <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                     {node.form.map((field) => {
                       const auto = field.prefillFrom !== null;
+                      const edited = isEdited(field);
                       const wide = field.name === "address" || field.name === "full_name";
                       return (
                         <div
-                          className={"field" + (auto ? " auto" : "")}
+                          className={"field" + (auto && !edited ? " auto" : "")}
                           key={field.name}
                           style={{ gridColumn: wide ? "1 / -1" : "auto" }}
-                          title={auto ? "Managed by eGovPH" : undefined}
                         >
-                          <label>
+                          <label htmlFor={`field-${field.name}`}>
                             {field.label}{" "}
-                            {auto && <span style={{ color: "#8a6d00", fontWeight: 700 }}>· auto</span>}
+                            {auto && !edited && (
+                              <span style={{ color: "#8a6d00", fontWeight: 700 }}>· auto</span>
+                            )}
+                            {edited && (
+                              <>
+                                <span style={{ color: "var(--route)", fontWeight: 700 }}>· edited</span>{" "}
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setInputs((prev) => ({
+                                      ...prev,
+                                      [field.name]: prefillValue(user, field.prefillFrom as string),
+                                    }))
+                                  }
+                                  style={{
+                                    background: "none", border: 0, padding: 0, font: "inherit",
+                                    fontSize: 11, fontWeight: 600, color: "var(--muted)",
+                                    textDecoration: "underline", cursor: "pointer",
+                                  }}
+                                >
+                                  undo
+                                </button>
+                              </>
+                            )}
                           </label>
                           <input
-                            readOnly={auto}
-                            tabIndex={auto ? -1 : 0}
-                            value={
-                              auto
-                                ? prefillValue(user, field.prefillFrom as string)
-                                : (inputs[field.name] ?? "")
-                            }
-                            onChange={
-                              auto
-                                ? undefined
-                                : (e) =>
-                                    setInputs((prev) => ({ ...prev, [field.name]: e.target.value }))
+                            id={`field-${field.name}`}
+                            value={inputs[field.name] ?? ""}
+                            onChange={(e) =>
+                              setInputs((prev) => ({ ...prev, [field.name]: e.target.value }))
                             }
                           />
                         </div>
@@ -174,8 +202,8 @@ export function NodeModal({ node, user, onClose, onComplete }: NodeModalProps) {
                     })}
                   </div>
                   <p style={{ fontSize: 11.5, color: "var(--muted)", marginTop: 10 }}>
-                    Fields marked <b>auto</b> came from your verified identity via eVerify — you
-                    didn&rsquo;t type them and they can&rsquo;t be edited. Review, then submit.
+                    Fields marked <b>auto</b> were filled from your verified identity via eVerify —
+                    you didn&rsquo;t type them. You can still correct any field before submitting.
                   </p>
                 </>
               )}
