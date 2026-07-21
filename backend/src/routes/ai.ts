@@ -3,6 +3,7 @@ import { Router } from "express";
 import { z } from "zod";
 import { anthropicConfigured, claudeChat, ChatTurn } from "../clients/claude";
 import { requireSession } from "../middleware/session";
+import { answerFromKnowledgeBase } from "../services/knowledgeBase";
 import { nodeById, orderedNodes } from "../services/roadmap";
 
 export const aiRouter = Router();
@@ -53,27 +54,27 @@ aiRouter.post("/ai/chat", requireSession, async (req, res, next) => {
       { role: "user", content: prompt },
     ];
 
+    // No API key → answer from the offline knowledge base (marked simulated
+    // so the sandbox badge shows) instead of failing.
     if (!anthropicConfigured()) {
-      res.status(503).json({
-        ok: false,
-        error: "The AI assistant isn't configured yet.",
-        hint: "Set ANTHROPIC_API_KEY in backend/.env and restart the server.",
-      });
+      console.warn("[claude] not configured — answering from the offline knowledge base");
+      res.json({ ok: true, data: { text: answerFromKnowledgeBase(prompt).text, simulated: true } });
       return;
     }
 
-    const text = await claudeChat(system, turns);
-    res.json({ ok: true, data: { text, simulated: false } });
-  } catch (err) {
-    if (err instanceof Anthropic.APIError) {
-      console.error(`[claude] API error ${err.status ?? "network"}: ${err.message}`);
-      res.status(502).json({
-        ok: false,
-        error: "Assistant is unavailable right now.",
-        hint: "Try again in a moment.",
-      });
-      return;
+    try {
+      const text = await claudeChat(system, turns);
+      res.json({ ok: true, data: { text, simulated: false } });
+    } catch (err) {
+      // API errors also degrade to the knowledge base — the copilot always answers.
+      if (err instanceof Anthropic.APIError) {
+        console.error(`[claude] API error ${err.status ?? "network"}: ${err.message} — degrading to knowledge base`);
+        res.json({ ok: true, data: { text: answerFromKnowledgeBase(prompt).text, simulated: true } });
+        return;
+      }
+      throw err;
     }
+  } catch (err) {
     next(err);
   }
 });

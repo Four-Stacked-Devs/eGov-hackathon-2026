@@ -110,9 +110,10 @@ export default function DashboardPage() {
     });
     setBusy(false);
     if (!res.ok) {
+      const detail = [res.error, res.hint].filter(Boolean).join(" ");
       push({
         role: "assistant",
-        content: "Assistant is unavailable — your roadmap still works.",
+        content: detail || "Assistant is unavailable — your roadmap still works.",
         isError: true,
       });
       return;
