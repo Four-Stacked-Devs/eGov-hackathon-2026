@@ -2,26 +2,18 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiGet } from "@/lib/api";
-import type { RoadmapData, RoadmapNode, SubmitResult, UserProfile } from "@/lib/types";
-import { ChatDrawer } from "@/components/ChatDrawer";
+import { BadgeCheck } from "lucide-react";
+import { apiGet, apiPost } from "@/lib/api";
+import type {
+  ChatResult, RoadmapData, RoadmapNode, SubmitResult, UserProfile,
+} from "@/lib/types";
+import { ChatPane, type ChatMessage, type Faq } from "@/components/ChatPane";
+import { Logo } from "@/components/Logo";
 import { NodeModal } from "@/components/NodeModal";
-import { Roadmap } from "@/components/Roadmap";
-import { SummaryBar } from "@/components/SummaryBar";
-import { Toast } from "@/components/Toast";
-import { useUi } from "@/store/ui";
+import { RoutePane } from "@/components/RoutePane";
 
-function Skeleton() {
-  return (
-    <div className="animate-pulse space-y-6">
-      <div className="h-12 rounded-xl bg-slate-200" />
-      <div className="flex flex-col items-center gap-6 md:flex-row md:justify-center">
-        {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-36 w-44 rounded-xl bg-slate-200" />
-        ))}
-      </div>
-    </div>
-  );
+function cap(s: string): string {
+  return s ? s[0] + s.slice(1).toLowerCase() : s;
 }
 
 export default function DashboardPage() {
@@ -30,11 +22,15 @@ export default function DashboardPage() {
   const [roadmap, setRoadmap] = useState<RoadmapData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const openNodeId = useUi((s) => s.openNodeId);
-  const openNode = useUi((s) => s.openNode);
-  const closeNode = useUi((s) => s.closeNode);
-  const showToast = useUi((s) => s.showToast);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [routeShown, setRouteShown] = useState(false);
+  const [activeNode, setActiveNode] = useState<RoadmapNode | null>(null);
   const startedRef = useRef(false);
+
+  const push = useCallback((...msgs: ChatMessage[]) => {
+    setMessages((m) => [...m, ...msgs]);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,6 +48,14 @@ export default function DashboardPage() {
       return;
     }
     setRoadmap(rm.data);
+    // Returning users with progress see their route immediately.
+    setRouteShown(rm.data.nodes.some((n) => n.status === "done"));
+    setMessages([
+      {
+        role: "assistant",
+        content: `Hi ${cap(me.data.user.first_name)}! Your identity is verified, so I can pre-fill any government form for you. Ask me anything — or tap a shortcut below. When you pick a goal, your step-by-step route appears on the left.`,
+      },
+    ]);
     setLoading(false);
   }, [router]);
 
@@ -61,7 +65,58 @@ export default function DashboardPage() {
     void load();
   }, [load]);
 
-  function handleSubmitted(result: SubmitResult) {
+  const firstName = user ? cap(user.first_name) : "";
+
+  function startRoute(withUserMsg: ChatMessage | null) {
+    if (routeShown) {
+      const again: ChatMessage = {
+        role: "assistant",
+        content: "Your driver's-licence route is live on the left panel — tap the highlighted station to continue. 👈",
+      };
+      push(...(withUserMsg ? [withUserMsg, again] : [again]));
+      return;
+    }
+    setRouteShown(true);
+    const intro: ChatMessage = {
+      role: "assistant",
+      content: `Great goal, ${firstName}! I've mapped your journey to a Non-Professional Driver's Licence — see the route panel on the left. Six stations; tap each to see what's needed and file it in place. Your verified ID fills the forms for you.`,
+    };
+    push(...(withUserMsg ? [withUserMsg, intro] : [intro]));
+  }
+
+  function handleFaq(faq: Faq) {
+    if (busy) return;
+    if (faq.kind === "route") {
+      startRoute({ role: "user", content: faq.ask });
+    } else if (faq.answer) {
+      // Canned answer, browser-side only — spends no AI credits.
+      push({ role: "user", content: faq.ask }, { role: "assistant", content: faq.answer });
+    }
+  }
+
+  async function send(text: string) {
+    push({ role: "user", content: text });
+    setBusy(true);
+    // Stateless: only the prompt + current node id go to the backend —
+    // never the visible message history.
+    const activeNodeId = roadmap?.nodes.find((n) => n.status === "active")?.id;
+    const res = await apiPost<ChatResult>("/ai/chat", {
+      prompt: text,
+      ...(activeNodeId ? { node_id: activeNodeId } : {}),
+    });
+    setBusy(false);
+    if (!res.ok) {
+      push({
+        role: "assistant",
+        content: "Assistant is unavailable — your roadmap still works.",
+        isError: true,
+      });
+      return;
+    }
+    push({ role: "assistant", content: res.data.text, simulated: res.data.simulated });
+  }
+
+  function handleComplete(result: SubmitResult) {
     setRoadmap((prev) =>
       prev
         ? {
@@ -76,64 +131,87 @@ export default function DashboardPage() {
           }
         : prev
     );
-    showToast(`Submitted! Ref ${result.reference_no} — SMS confirmation sent 📱`);
-    closeNode();
+    setActiveNode(null);
+    const node = roadmap?.nodes.find((n) => n.id === result.node_id);
+    const next = result.next_node_id
+      ? roadmap?.nodes.find((n) => n.id === result.next_node_id)
+      : undefined;
+    const smsNote = user?.mobile_number
+      ? ` A confirmation SMS was sent to ${user.mobile_number} via eMessage.`
+      : "";
+    push({
+      role: "assistant",
+      content: next
+        ? `✅ "${node?.title ?? result.node_id}" is done — your pre-filled application ${result.reference_no} was filed with the simulated LTO sandbox.${smsNote} Next stop unlocked on the left: "${next.title}".`
+        : `🎉 That was the last station — route complete! You've gone from zero to a Non-Professional Driver's Licence.${smsNote} Ask me about any other government service next.`,
+      simulated: true,
+    });
   }
 
-  const openedNode: RoadmapNode | undefined = roadmap?.nodes.find((n) => n.id === openNodeId);
-  const activeNodeId = roadmap?.nodes.find((n) => n.status === "active")?.id;
-
-  return (
-    <main className="mx-auto w-full max-w-4xl px-4 py-6 pb-24">
-      <header className="mb-6 flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            {roadmap?.title ?? "Driver's License Roadmap"}
-          </h1>
-          <p className="text-sm text-slate-500">
-            {roadmap?.subtitle ?? "Student Permit to Non-Professional License"}
-          </p>
+  if (loading) {
+    return (
+      <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center" }}>
+        <div style={{ display: "grid", gap: 12, justifyItems: "center" }}>
+          <Logo size={28} />
+          <div style={{ width: 180, height: 8, borderRadius: 999, background: "var(--line)", overflow: "hidden" }}>
+            <div className="scanline" style={{ position: "static", height: "100%", animation: "none" }} />
+          </div>
+          <span style={{ color: "var(--muted)", fontSize: 13 }}>Loading your workspace…</span>
         </div>
-        {user && (
-          <p className="text-sm font-medium text-slate-600">
-            👤 {user.first_name} {user.last_name}
-          </p>
-        )}
-      </header>
+      </div>
+    );
+  }
 
-      {loading && <Skeleton />}
-
-      {!loading && error && (
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <p className="text-sm text-slate-700">{error}</p>
-          <button
-            type="button"
-            onClick={() => void load()}
-            className="mt-3 rounded-lg bg-brand px-5 py-2 text-sm font-semibold text-white hover:bg-blue-800"
-          >
+  if (error || !roadmap || !user) {
+    return (
+      <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+        <div className="card" style={{ maxWidth: 380, width: "100%", padding: 24, textAlign: "center" }}>
+          <p style={{ fontSize: 14, color: "var(--muted)" }}>{error ?? "Something went wrong."}</p>
+          <button className="btn btn-primary" style={{ justifyContent: "center", width: "100%" }} onClick={() => void load()}>
             Retry
           </button>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      {!loading && !error && roadmap && user && (
-        <div className="space-y-8">
-          <SummaryBar summary={roadmap.summary} />
-          <Roadmap nodes={roadmap.nodes} onNodeClick={(node) => openNode(node.id)} />
+  const initials = (user.first_name[0] ?? "") + (user.last_name[0] ?? "");
+
+  return (
+    <div className="ruta" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+      <header style={{ borderBottom: "1px solid var(--line)", background: "#fff", flex: "0 0 auto" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px" }}>
+          <Logo />
+          <span className="chip">
+            <span className="avatar">{initials}</span>
+            {cap(user.first_name)} {cap(user.last_name)}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--ok)", fontSize: 11.5, fontWeight: 700 }}>
+              <BadgeCheck size={13} /> Verified
+            </span>
+          </span>
         </div>
-      )}
+      </header>
 
-      {openedNode && user && (
+      <div className="split">
+        <aside className="route-pane">
+          <RoutePane
+            roadmap={roadmap}
+            routeShown={routeShown}
+            onOpen={setActiveNode}
+            onStartRoute={() => startRoute(null)}
+          />
+        </aside>
+        <ChatPane messages={messages} busy={busy} onSend={(t) => void send(t)} onFaq={handleFaq} />
+      </div>
+
+      {activeNode && (
         <NodeModal
-          node={openedNode}
+          node={activeNode}
           user={user}
-          onClose={closeNode}
-          onSubmitted={handleSubmitted}
+          onClose={() => setActiveNode(null)}
+          onComplete={handleComplete}
         />
       )}
-
-      <ChatDrawer activeNodeId={activeNodeId} />
-      <Toast />
-    </main>
+    </div>
   );
 }

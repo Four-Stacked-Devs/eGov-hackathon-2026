@@ -3,10 +3,25 @@
 import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
+import { Loader2 } from "lucide-react";
 import { apiPost } from "@/lib/api";
 import type { AuthResult } from "@/lib/types";
+import { Logo } from "@/components/Logo";
 
 type Phase = "loading" | "error";
+
+function Shell({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="ruta" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="card" style={{ maxWidth: 420, width: "100%", padding: 26, textAlign: "center" }}>
+        <div style={{ display: "flex", justifyContent: "center", marginBottom: 10 }}>
+          <Logo />
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 function SsoCallback() {
   const searchParams = useSearchParams();
@@ -24,7 +39,7 @@ function SsoCallback() {
       router.replace("/dashboard");
       return;
     }
-    setErrorMessage(res.error);
+    setErrorMessage([res.error, res.hint].filter(Boolean).join(" "));
     setPhase("error");
   }, [exchangeCode, router]);
 
@@ -36,51 +51,41 @@ function SsoCallback() {
 
   if (!exchangeCode) {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-bold text-slate-900">Invalid sign-in link</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            This page needs to be opened from an eGovPH sign-in.
-          </p>
-          <Link
-            href="/"
-            className="mt-4 inline-block rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
-          >
-            Back to home
-          </Link>
-        </div>
-      </main>
+      <Shell>
+        <h2 style={{ fontSize: 20, margin: "0 0 6px" }}>Invalid sign-in link</h2>
+        <p style={{ color: "var(--muted)", fontSize: 14 }}>
+          This page needs to be opened from an eGovPH sign-in.
+        </p>
+        <Link href="/" className="btn btn-primary" style={{ justifyContent: "center", marginTop: 8 }}>
+          Back to home
+        </Link>
+      </Shell>
     );
   }
 
   if (phase === "error") {
     return (
-      <main className="flex min-h-screen items-center justify-center px-4">
-        <div className="w-full max-w-sm rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
-          <h1 className="text-lg font-bold text-slate-900">Sign-in didn&apos;t complete</h1>
-          <p className="mt-2 text-sm text-slate-600">{errorMessage}</p>
-          <div className="mt-4 flex flex-col gap-2">
-            <button
-              type="button"
-              onClick={() => void signIn()}
-              className="rounded-lg bg-brand px-5 py-2.5 text-sm font-semibold text-white hover:bg-blue-800"
-            >
-              Retry
-            </button>
-            <Link href="/" className="text-sm font-medium text-slate-500 hover:text-slate-700">
-              Back to home
-            </Link>
-          </div>
+      <Shell>
+        <h2 style={{ fontSize: 20, margin: "0 0 6px" }}>Sign-in didn&rsquo;t complete</h2>
+        <p style={{ color: "var(--muted)", fontSize: 14 }}>{errorMessage}</p>
+        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+          <button className="btn btn-primary" style={{ justifyContent: "center" }} onClick={() => void signIn()}>
+            Retry
+          </button>
+          <Link href="/" style={{ fontSize: 13, fontWeight: 600, color: "var(--muted)" }}>
+            Back to home
+          </Link>
         </div>
-      </main>
+      </Shell>
     );
   }
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-4 px-4">
-      <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-brand" aria-hidden />
-      <p className="text-sm font-medium text-slate-700">Signing you in with eGovPH…</p>
-    </main>
+    <Shell>
+      <p style={{ fontSize: 14, color: "var(--muted)", display: "inline-flex", alignItems: "center", gap: 8 }}>
+        <Loader2 size={16} className="spin" /> Signing you in with eGovPH…
+      </p>
+    </Shell>
   );
 }
 
@@ -88,9 +93,9 @@ export default function SsoPage() {
   return (
     <Suspense
       fallback={
-        <main className="flex min-h-screen items-center justify-center">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-slate-200 border-t-brand" aria-hidden />
-        </main>
+        <Shell>
+          <p style={{ fontSize: 14, color: "var(--muted)" }}>Loading…</p>
+        </Shell>
       }
     >
       <SsoCallback />

@@ -1,59 +1,91 @@
 import Link from "next/link";
+import { ArrowRight, MapPin, ScanFace, ShieldCheck, Sparkles } from "lucide-react";
+import { Logo } from "@/components/Logo";
 
-const COMING_SOON = ["I had a baby", "I lost my wallet", "Starting a business"];
+const FEATURES = [
+  {
+    icon: <ScanFace size={20} color="var(--route)" />,
+    title: "One face, no forms",
+    body: "eVerify + Face Liveness confirm it's really you, then your PhilSys identity fills every field.",
+  },
+  {
+    icon: <Sparkles size={20} color="var(--route)" />,
+    title: "Ask anything",
+    body: "A copilot chat with shortcuts for the questions every Filipino asks — licences, certificates, SSS, passports.",
+  },
+  {
+    icon: <MapPin size={20} color="var(--route)" />,
+    title: "Routes, not runarounds",
+    body: "Big journeys become a clickable route beside the chat. Tap a station, review the pre-filled form, submit.",
+  },
+];
 
 export default function LandingPage() {
   return (
-    <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col items-center justify-center px-4 py-12">
-      <div className="w-full text-center">
-        <p className="mb-3 inline-block rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-brand">
-          eGov Hackathon 2026
-        </p>
-        <h1 className="text-4xl font-extrabold tracking-tight text-slate-900 sm:text-5xl">
-          GabAI <span className="text-brand">PH</span>
-        </h1>
-        <p className="mt-3 text-lg font-medium text-slate-700">
-          Verify once with your face. Get a living roadmap to your driver&apos;s license.
-        </p>
-        <p className="mx-auto mt-2 max-w-md text-sm text-slate-500">
-          One face scan fills your whole profile from PhilSys — then follow a clickable,
-          step-by-step path from Student Permit to Non-Professional License.
-        </p>
+    <div className="ruta" style={{ minHeight: "100vh" }}>
+      <header className="wrap" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "20px" }}>
+        <Logo />
+        <span className="chip">
+          <ShieldCheck size={15} color="var(--route)" /> Once-Only Policy
+        </span>
+      </header>
 
-        <div className="mx-auto mt-8 flex w-full max-w-sm flex-col gap-3">
-          {/* PROD: replace with real eGovPH-initiated redirect */}
-          <Link
-            href="/egovph/sso?exchange_code=DEMO_EXCHANGE_CODE"
-            className="w-full rounded-xl bg-brand px-6 py-3.5 text-center text-sm font-semibold text-white shadow-sm transition hover:bg-blue-800"
-          >
-            Continue with eGovPH
-          </Link>
-          <Link
-            href="/register"
-            className="w-full rounded-xl border border-slate-300 bg-white px-6 py-3.5 text-center text-sm font-semibold text-slate-800 shadow-sm transition hover:border-brand hover:text-brand"
-          >
-            Register with Face Verification
-          </Link>
-        </div>
-
-        <div className="mt-12 w-full">
-          <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">
-            More life-event roadmaps
-          </h2>
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-            {COMING_SOON.map((title) => (
-              <div
-                key={title}
-                aria-disabled
-                className="cursor-not-allowed rounded-xl border border-slate-200 bg-slate-100 p-4 text-sm font-medium text-locked"
-              >
-                {title}
-                <span className="mt-1 block text-xs font-normal">Coming soon</span>
-              </div>
-            ))}
+      <section className="wrap" style={{ padding: "48px 20px 40px", position: "relative" }}>
+        <svg
+          viewBox="0 0 1120 300"
+          style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.5, zIndex: 0 }}
+          aria-hidden
+        >
+          <path
+            d="M-20 250 C 200 250, 200 90, 420 90 S 640 210, 860 210 S 1080 70, 1160 70"
+            stroke="#CFDBF0" strokeWidth="2" fill="none" strokeDasharray="1 8" strokeLinecap="round"
+          />
+        </svg>
+        <div style={{ position: "relative", zIndex: 1, maxWidth: 720 }}>
+          <div className="eyebrow">A copilot for Philippine government</div>
+          <h1 style={{ fontSize: "clamp(34px, 7vw, 52px)", lineHeight: 1.04, letterSpacing: "-.03em", margin: "14px 0 0", fontWeight: 800 }}>
+            Verify once.<br />Then just ask,<br />
+            <span style={{ color: "var(--route)" }}>not apply.</span>
+          </h1>
+          <p style={{ fontSize: 18, color: "var(--muted)", maxWidth: 560, marginTop: 18 }}>
+            Sign in with your face — type three details once, and your verified profile fills
+            every government form after that. Ask anything: answers on the right, your route on
+            the left.
+          </p>
+          <div style={{ display: "flex", gap: 12, marginTop: 26, flexWrap: "wrap" }}>
+            <Link href="/register" className="btn btn-primary">
+              <ScanFace size={18} /> Get started <ArrowRight size={16} />
+            </Link>
+            {/* PROD: replace with real eGovPH-initiated redirect */}
+            <Link href="/egovph/sso?exchange_code=DEMO_EXCHANGE_CODE" className="btn btn-ghost">
+              Continue with eGovPH
+            </Link>
+          </div>
+          <div style={{ marginTop: 14 }}>
+            <span className="chip" style={{ padding: "10px 14px" }}>
+              <Sparkles size={15} color="var(--sun)" /> Live demo route:&nbsp;<b>Driver&rsquo;s licence</b>
+            </span>
           </div>
         </div>
-      </div>
-    </main>
+      </section>
+
+      <section
+        className="wrap"
+        style={{ paddingBottom: 56, display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(240px,1fr))", gap: 16 }}
+      >
+        {FEATURES.map((c) => (
+          <div className="card" key={c.title} style={{ padding: 20 }}>
+            <div style={{ marginBottom: 10 }}>{c.icon}</div>
+            <div style={{ fontWeight: 700, marginBottom: 6 }}>{c.title}</div>
+            <div style={{ color: "var(--muted)", fontSize: 14 }}>{c.body}</div>
+          </div>
+        ))}
+      </section>
+
+      <footer className="wrap" style={{ padding: "0 20px 40px", color: "var(--muted)", fontSize: 12.5 }}>
+        Built for the DICT eGov Hackathon. Identity (eVerify + Face Liveness), SMS (eMessage), and
+        AI (eGov AI) are live government APIs; LTO submissions are simulated and labelled as such.
+      </footer>
+    </div>
   );
 }
