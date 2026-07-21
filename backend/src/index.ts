@@ -4,7 +4,7 @@ import cookieParser from "cookie-parser";
 import { env } from "./env"; // fail-fast env validation runs on import
 import { attachSession } from "./middleware/session";
 import { errorMiddleware } from "./middleware/error";
-import { egovaiTokens } from "./clients/egovai";
+import { anthropicConfigured } from "./clients/claude";
 import { authRouter } from "./routes/auth";
 import { roadmapRouter } from "./routes/roadmap";
 import { formsRouter } from "./routes/forms";
@@ -26,22 +26,15 @@ app.use(adminRouter);
 
 app.use(errorMiddleware);
 
-async function boot(): Promise<void> {
-  if (env.AI_MOCK) {
-    console.log("[boot] AI_MOCK=true — skipping eGov AI token warm-up");
-  } else {
-    try {
-      await egovaiTokens.getToken();
-    } catch (err) {
-      console.error(
-        "[boot] eGov AI token warm-up failed — continuing; chat will degrade:",
-        err instanceof Error ? err.message : err
-      );
-    }
+function boot(): void {
+  if (!anthropicConfigured()) {
+    console.warn(
+      "[boot] ANTHROPIC_API_KEY is not set — the AI copilot will return a 'not configured' error until it is."
+    );
   }
   app.listen(env.PORT, () => {
     console.log(`[boot] HaviFlow backend listening on :${env.PORT}`);
   });
 }
 
-void boot();
+boot();

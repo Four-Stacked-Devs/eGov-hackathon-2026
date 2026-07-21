@@ -9,9 +9,9 @@ interface TokenStatus {
 }
 
 interface AdminStatus {
-  tokens: { sso: TokenStatus; everify: TokenStatus; egovai: TokenStatus };
-  mocks: { SSO_MOCK: boolean; EVERIFY_MOCK: boolean; AI_MOCK: boolean; SMS_MOCK: boolean };
-  egovai_credits_remaining: number | "unknown";
+  tokens: { sso: TokenStatus; everify: TokenStatus };
+  mocks: { SSO_MOCK: boolean; EVERIFY_MOCK: boolean; SMS_MOCK: boolean };
+  ai: { provider: string; model: string; configured: boolean };
   users_in_memory: number;
 }
 
@@ -92,12 +92,21 @@ export default function AdminPage() {
             </div>
           </section>
 
-          <section className="flex gap-8">
+          <section className="flex flex-wrap gap-8">
             <div>
-              <h2 className="text-sm font-semibold text-slate-700">eGov AI credits</h2>
-              <p className="text-4xl font-extrabold text-brand">
-                {status.egovai_credits_remaining}
+              <h2 className="text-sm font-semibold text-slate-700">AI copilot</h2>
+              <p className="text-lg font-bold text-slate-800">
+                {status.ai.provider} · <span className="font-mono">{status.ai.model}</span>
               </p>
+              <span
+                className={`mt-1 inline-block rounded-full px-3 py-1 text-xs font-semibold ${
+                  status.ai.configured
+                    ? "bg-green-100 text-green-800"
+                    : "bg-amber-100 text-amber-800"
+                }`}
+              >
+                {status.ai.configured ? "configured" : "API key missing"}
+              </span>
             </div>
             <div>
               <h2 className="text-sm font-semibold text-slate-700">Users in memory</h2>

@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { env } from "../env";
+import { anthropicConfigured } from "../clients/claude";
 import { everifyTokens } from "../clients/everify";
-import { aiCredits, egovaiTokens } from "../clients/egovai";
 import { users } from "../store";
 
 export const adminRouter = Router();
@@ -15,15 +15,17 @@ adminRouter.get("/admin/status", async (_req, res) => {
         // SSO access tokens are one-time per citizen sign-in — never cached.
         sso: { cached: false, expires_in_s: null },
         everify: everifyTokens.status(),
-        egovai: egovaiTokens.status(),
       },
       mocks: {
         SSO_MOCK: env.SSO_MOCK,
         EVERIFY_MOCK: env.EVERIFY_MOCK,
-        AI_MOCK: env.AI_MOCK,
         SMS_MOCK: env.SMS_MOCK,
       },
-      egovai_credits_remaining: await aiCredits(),
+      ai: {
+        provider: "anthropic",
+        model: env.ANTHROPIC_MODEL,
+        configured: anthropicConfigured(),
+      },
       users_in_memory: users.size,
     },
   });

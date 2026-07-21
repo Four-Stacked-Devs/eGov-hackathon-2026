@@ -4,7 +4,7 @@ export interface MintResult {
 }
 
 /**
- * One class, three instances (sso, everify, egovai).
+ * Caches a gov-service access token (currently used by eVerify).
  * Returns the cached token while it has ≥60s of life left; otherwise mints
  * via the service's documented endpoint. Concurrent callers await the same
  * in-flight mint (single-flight). Token values are never logged.
