@@ -1,0 +1,63 @@
+# Render blueprint for the HaviFlow backend (Express).
+# The frontend deploys separately on Vercel — see DEPLOY.md.
+#
+# Render → New → Blueprint → point at this repo. Render reads this file,
+# creates the service, then prompts you for the secret env vars below.
+services:
+  - type: web
+    name: haviflow-backend
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /
+    envVars:
+      # Render injects PORT automatically; the app reads it via env.PORT.
+      # Set this to your deployed Vercel URL (no trailing slash) for CORS.
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: NODE_ENV
+        value: production
+
+      # eGov SSO
+      - key: SSO_BASE_URL
+        value: https://hackathon-sso.e.gov.ph
+      - key: SSO_PARTNER_CODE
+        sync: false
+      - key: SSO_PARTNER_SECRET
+        sync: false
+      - key: SSO_SCOPE
+        value: SSO_AUTHENTICATION
+
+      # eVerify (National ID)
+      - key: EVERIFY_BASE_URL
+        value: https://hackathon-everify-api.e.gov.ph
+      - key: EVERIFY_CLIENT_ID
+        sync: false
+      - key: EVERIFY_CLIENT_SECRET
+        sync: false
+
+      # Face Liveness (optional diagnostic pre-check)
+      - key: FACE_LIVENESS_BASE_URL
+        sync: false
+      - key: FACE_LIVENESS_API_KEY
+        sync: false
+
+      # eGov AI (drives driver's-license chat answers)
+      - key: EGOVAI_BASE_URL
+        value: https://egov-ai-core-ws.oueg.info
+      - key: EGOVAI_ACCESS_CODE
+        sync: false
+
+      # eMessage
+      - key: EMESSAGE_BASE_URL
+        value: https://ws-message.e.gov.ph
+      - key: EMESSAGE_TOKEN
+        sync: false
+
+      # Demo resilience flags — "true" returns fixtures instead of live gov APIs
+      - key: SSO_MOCK
+        value: "false"
+      - key: SMS_MOCK
+        value: "false"
