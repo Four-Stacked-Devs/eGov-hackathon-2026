@@ -19,6 +19,19 @@ export const FIXTURE_EVERIFY_PROFILE = {
  * any other typed details are rejected exactly like a real PhilSys mismatch,
  * so the demo can't be tricked into "verifying" arbitrary people.
  */
+/**
+ * Date pickers display MM/DD vs DD/MM depending on locale, so the demo
+ * identity's birth date is also accepted with month and day swapped.
+ */
+function birthDateVariants(iso: string): string[] {
+  const parts = iso.trim().match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!parts) return [iso.trim()];
+  const [, year, month, day] = parts;
+  return month === day
+    ? [`${year}-${month}-${day}`]
+    : [`${year}-${month}-${day}`, `${year}-${day}-${month}`];
+}
+
 export function matchesEverifyFixture(details: {
   first_name: string;
   last_name: string;
@@ -28,7 +41,7 @@ export function matchesEverifyFixture(details: {
   return (
     norm(details.first_name) === norm(FIXTURE_EVERIFY_PROFILE.first_name) &&
     norm(details.last_name) === norm(FIXTURE_EVERIFY_PROFILE.last_name) &&
-    details.birth_date.trim() === FIXTURE_EVERIFY_PROFILE.birth_date
+    birthDateVariants(details.birth_date).includes(FIXTURE_EVERIFY_PROFILE.birth_date)
   );
 }
 

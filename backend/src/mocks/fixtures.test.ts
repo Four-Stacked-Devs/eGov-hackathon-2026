@@ -33,4 +33,11 @@ describe("matchesEverifyFixture", () => {
       matchesEverifyFixture({ ...fixtureDetails, birth_date: "1999-01-01" })
     ).toBe(false);
   });
+
+  it("accepts the fixture birth date with month and day swapped (date-picker ambiguity)", () => {
+    const [year, month, day] = FIXTURE_EVERIFY_PROFILE.birth_date.split("-");
+    expect(
+      matchesEverifyFixture({ ...fixtureDetails, birth_date: `${year}-${day}-${month}` })
+    ).toBe(true);
+  });
 });

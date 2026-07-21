@@ -200,26 +200,47 @@ authRouter.post("/auth/verify", async (req, res, next) => {
           data = FIXTURE_EVERIFY_PROFILE;
           simulated = true;
         } else if (axios.isAxiosError(err) && err.response && err.response.status < 500) {
-          // The live API reports failures as 4xx with citizen-readable
-          // messages (e.g. "Face liveness encountered an error.") —
-          // pass those through instead of a generic error.
           const upstream = err.response.data as Record<string, unknown> | null;
-          console.error(
-            `[everify] rejected query (${err.response.status}): ${JSON.stringify(upstream ?? null)}`
-          );
-          res.status(422).json({
-            ok: false,
-            error:
-              typeof upstream?.message === "string"
-                ? upstream.message
-                : "We couldn't match those details with PhilSys.",
-            hint: "Check spelling and birth date, then try again.",
-          });
-          return;
+          if (matchesEverifyFixture(body)) {
+            // Failsafe: the demo identity must never fail on stage, even
+            // when the live API rejects the scan.
+            console.warn(
+              `[everify] live API rejected the demo identity (${err.response.status}) — failsafe fixture engaged: ${JSON.stringify(upstream ?? null)}`
+            );
+            data = FIXTURE_EVERIFY_PROFILE;
+            simulated = true;
+          } else {
+            // The live API reports failures as 4xx with citizen-readable
+            // messages (e.g. "Face liveness encountered an error.") —
+            // pass those through instead of a generic error.
+            console.error(
+              `[everify] rejected query (${err.response.status}): ${JSON.stringify(upstream ?? null)}`
+            );
+            res.status(422).json({
+              ok: false,
+              error:
+                typeof upstream?.message === "string"
+                  ? upstream.message
+                  : "We couldn't match those details with PhilSys.",
+              hint: "Check spelling and birth date, then try again.",
+            });
+            return;
+          }
         } else {
           throw err;
         }
       }
+    }
+    if (!isVerified(data) && matchesEverifyFixture(body)) {
+      // Failsafe: a 200 body that doesn't verify still must not fail the
+      // demo identity.
+      const { token: _t, reference: _r, face_url: _f, ...redacted } = data;
+      console.warn(
+        "[everify] live API did not verify the demo identity — failsafe fixture engaged:",
+        JSON.stringify(redacted)
+      );
+      data = FIXTURE_EVERIFY_PROFILE;
+      simulated = true;
     }
     if (!isVerified(data)) {
       // Server-console-only diagnostic of the real upstream shape,
