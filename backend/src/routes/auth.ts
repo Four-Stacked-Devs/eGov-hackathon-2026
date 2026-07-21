@@ -1,3 +1,4 @@
+import axios from "axios";
 import { Router } from "express";
 import { z } from "zod";
 import { env } from "../env";
@@ -37,9 +38,18 @@ function firstString(obj: Record<string, unknown>, keys: string[]): string | nul
   return null;
 }
 
+/** The live SSO returns birth_date as MM/DD/YYYY — normalize to YYYY-MM-DD. */
+function normalizeBirthDate(value: string | null): string {
+  if (!value) return "";
+  const mdy = value.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (mdy) return `${mdy[3]}-${mdy[1]}-${mdy[2]}`;
+  return value;
+}
+
 /**
- * The SSO profile's exact keys aren't fully documented (name, birthdate,
- * address, email, contact number) — map defensively; unknown fields are ignored.
+ * Maps the sso_authentication profile (per the sandbox OpenAPI: uniqid,
+ * first/middle/last name, suffix, gender, birth_date, email, mobile,
+ * address, …) defensively; unknown fields are ignored.
  */
 function mapSsoProfile(raw: Record<string, unknown>): SanitizedProfile {
   const source = (
@@ -59,7 +69,7 @@ function mapSsoProfile(raw: Record<string, unknown>): SanitizedProfile {
     last_name,
     suffix,
     gender: firstString(source, ["gender", "sex"]),
-    birth_date: firstString(source, ["birth_date", "birthdate", "birthday"]) ?? "",
+    birth_date: normalizeBirthDate(firstString(source, ["birth_date", "birthdate", "birthday"])),
     mobile_number: firstString(source, ["mobile_number", "contact_number", "mobile", "phone"]),
     email: firstString(source, ["email"]),
     full_address: firstString(source, ["full_address", "address"]),
@@ -108,10 +118,25 @@ authRouter.post("/auth/sso", async (req, res, next) => {
         raw = await ssoAuthenticate(exchange_code);
         simulated = false;
       } catch (err) {
-        if (!isNetworkOrTimeout(err)) throw err;
-        console.warn("[sso] gov API unreachable — degrading to fixture");
-        raw = FIXTURE_SSO_PROFILE;
-        simulated = true;
+        if (isNetworkOrTimeout(err)) {
+          console.warn("[sso] gov API unreachable — degrading to fixture");
+          raw = FIXTURE_SSO_PROFILE;
+          simulated = true;
+        } else if (axios.isAxiosError(err) && err.response && err.response.status < 500) {
+          // A real exchange_code only exists when the eGovPH app initiated
+          // the redirect — rejected/expired codes get a clear message.
+          console.error(
+            `[sso] rejected sign-in (${err.response.status}): ${JSON.stringify(err.response.data ?? null)}`
+          );
+          res.status(422).json({
+            ok: false,
+            error: "This eGovPH sign-in link is invalid or expired.",
+            hint: "Start from the eGovPH app, or use Face Verification instead.",
+          });
+          return;
+        } else {
+          throw err;
+        }
       }
     }
     const user = findOrCreateUser(mapSsoProfile(raw), initialProgress());

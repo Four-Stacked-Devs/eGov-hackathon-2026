@@ -1,6 +1,5 @@
 import { Router } from "express";
 import { env } from "../env";
-import { ssoTokens } from "../clients/sso";
 import { everifyTokens } from "../clients/everify";
 import { aiCredits, egovaiTokens } from "../clients/egovai";
 import { users } from "../store";
@@ -13,7 +12,8 @@ adminRouter.get("/admin/status", async (_req, res) => {
     ok: true,
     data: {
       tokens: {
-        sso: ssoTokens.status(),
+        // SSO access tokens are one-time per citizen sign-in — never cached.
+        sso: { cached: false, expires_in_s: null },
         everify: everifyTokens.status(),
         egovai: egovaiTokens.status(),
       },
