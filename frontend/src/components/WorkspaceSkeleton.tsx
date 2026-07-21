@@ -3,9 +3,9 @@ import { Logo } from "./Logo";
 /** Chat-first workspace skeleton shown while /me and /roadmap load. */
 export function WorkspaceSkeleton() {
   return (
-    <div className="haviflow" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="haviflow vh-screen" style={{ display: "flex", flexDirection: "column" }}>
       <header style={{ borderBottom: "1px solid var(--line)", background: "#fff", flex: "0 0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 16px" }}>
           <Logo />
           <div className="skeleton" style={{ width: 180, height: 32, borderRadius: 999 }} />
         </div>

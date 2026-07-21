@@ -56,16 +56,26 @@ export default function RegisterPage() {
       setError("Verification SDK still loading — try again in a moment.");
       return;
     }
+    const pubKey = (process.env.NEXT_PUBLIC_EKYC_PUBKEY ?? "").trim();
+    if (pubKey === "") {
+      setError(
+        "Face verification isn't configured — NEXT_PUBLIC_EKYC_PUBKEY is missing. Set it in the environment and redeploy."
+      );
+      return;
+    }
     setPhase("scanning");
     let session_id: string;
     try {
-      const response = await window.eKYC().start({
-        pubKey: process.env.NEXT_PUBLIC_EKYC_PUBKEY ?? "",
-      });
+      const response = await window.eKYC().start({ pubKey });
       // Use ONLY result.session_id — the photo/photo_url are never uploaded.
       session_id = response.result.session_id;
-    } catch {
-      setError("Face check was cancelled or didn't complete.");
+    } catch (err) {
+      // The SDK swallows detail behind a generic UI otherwise — log the real
+      // error so a bad pubKey / denied camera / cancel are distinguishable.
+      console.error("[eKYC] face scan failed:", err);
+      const detail =
+        err instanceof Error ? err.message : typeof err === "string" ? err : "";
+      setError(detail || "Face check was cancelled or didn't complete.");
       setPhase("idle");
       return;
     }
@@ -93,7 +103,7 @@ export default function RegisterPage() {
   const busy = phase === "scanning" || phase === "verifying";
 
   return (
-    <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+    <div className="haviflow minvh-screen" style={{ display: "grid", placeItems: "center", padding: 16 }}>
       <Script
         src="https://hackathon-everify-face-liveness.e.gov.ph/js/everify-liveness-sdk.min.js"
         strategy="afterInteractive"

@@ -152,7 +152,7 @@ export function NodeModal({ node, user, onClose, onComplete }: NodeModalProps) {
                     <div className="eyebrow" style={{ color: "var(--ink)" }}>Application form</div>
                     <span className="badge-onceonly"><ShieldCheck size={11} /> Pre-filled once-only</span>
                   </div>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+                  <div className="form-grid">
                     {node.form.map((field) => {
                       const auto = field.prefillFrom !== null;
                       const edited = isEdited(field);

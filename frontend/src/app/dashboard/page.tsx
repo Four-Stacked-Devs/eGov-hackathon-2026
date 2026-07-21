@@ -158,7 +158,7 @@ export default function DashboardPage() {
 
   if (error || !roadmap || !user) {
     return (
-      <div className="haviflow" style={{ minHeight: "100vh", display: "grid", placeItems: "center", padding: 24 }}>
+      <div className="haviflow minvh-screen" style={{ display: "grid", placeItems: "center", padding: 24 }}>
         <div className="card" style={{ maxWidth: 380, width: "100%", padding: 24, textAlign: "center" }}>
           <p style={{ fontSize: 14, color: "var(--muted)" }}>{error ?? "Something went wrong."}</p>
           <button className="btn btn-primary" style={{ justifyContent: "center", width: "100%" }} onClick={() => void load()}>
@@ -172,15 +172,15 @@ export default function DashboardPage() {
   const initials = (user.first_name[0] ?? "") + (user.last_name[0] ?? "");
 
   return (
-    <div className="haviflow" style={{ height: "100vh", display: "flex", flexDirection: "column" }}>
+    <div className="haviflow vh-screen" style={{ display: "flex", flexDirection: "column" }}>
       <header style={{ borderBottom: "1px solid var(--line)", background: "#fff", flex: "0 0 auto" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 20px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "12px 16px" }}>
           <Logo />
-          <span className="chip">
+          <span className="chip" style={{ minWidth: 0 }}>
             <span className="avatar">{initials}</span>
-            {cap(user.first_name)} {cap(user.last_name)}
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--ok)", fontSize: 11.5, fontWeight: 700 }}>
-              <BadgeCheck size={13} /> Verified
+            <span className="dash-username">{cap(user.first_name)} {cap(user.last_name)}</span>
+            <span style={{ display: "inline-flex", alignItems: "center", gap: 3, color: "var(--ok)", fontSize: 11.5, fontWeight: 700, flex: "0 0 auto" }}>
+              <BadgeCheck size={13} /> <span className="dash-verified-label">Verified</span>
             </span>
           </span>
         </div>
