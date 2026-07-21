@@ -1,0 +1,15 @@
+# dependencies
+node_modules/
+
+# secrets — real env files never committed
+.env
+.env.local
+
+# builds
+.next/
+dist/
+out/
+
+# misc
+.DS_Store
+*.log

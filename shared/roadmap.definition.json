@@ -1,0 +1,128 @@
+{
+  "journey_id": "drivers_license_nonpro",
+  "title": "Driver's License Roadmap",
+  "subtitle": "Student Permit to Non-Professional License",
+  "nodes": [
+    {
+      "id": "medical_certificate",
+      "order": 1,
+      "title": "Medical Certificate",
+      "description": "Get a medical examination from an LTO-accredited physician.",
+      "requirements": ["Valid government ID (your Digital National ID works)", "Personal appearance at an LTO-accredited clinic"],
+      "fee_php": 500,
+      "duration_weeks": 0.5,
+      "office_visit": true,
+      "steps": [
+        "Find an LTO-accredited medical clinic near you",
+        "Present your Digital National ID",
+        "Undergo the medical examination (vision, hearing, physical)",
+        "Receive your electronically transmitted medical certificate"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "birth_date", "label": "Birth Date", "prefillFrom": "birth_date" },
+        { "name": "address", "label": "Address", "prefillFrom": "full_address" },
+        { "name": "preferred_clinic_city", "label": "Preferred Clinic City", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "theoretical_driving_course",
+      "order": 2,
+      "title": "Theoretical Driving Course (TDC)",
+      "description": "Complete the mandatory 15-hour theoretical driving course.",
+      "requirements": ["Medical certificate (from previous step)", "15 hours of instruction at an LTO-accredited driving school or free at LTO Driver's Education Center"],
+      "fee_php": 0,
+      "duration_weeks": 1,
+      "office_visit": false,
+      "steps": [
+        "Choose an accredited driving school or LTO Driver's Education Center (free)",
+        "Attend the 15-hour theoretical course",
+        "Pass the course assessment",
+        "Receive your TDC certificate"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "preferred_schedule", "label": "Preferred Schedule (e.g., Weekends)", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "student_permit",
+      "order": 3,
+      "title": "Student Permit",
+      "description": "Apply for your Student Permit at an LTO office.",
+      "requirements": ["Must be at least 16 years old", "Medical certificate", "TDC certificate", "Duly accomplished application form"],
+      "fee_php": 250,
+      "duration_weeks": 0.5,
+      "office_visit": true,
+      "steps": [
+        "Go to any LTO Licensing Center",
+        "Submit medical certificate and TDC certificate",
+        "Have your photo and signature captured",
+        "Pay the fee and receive your Student Permit"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "birth_date", "label": "Birth Date", "prefillFrom": "birth_date" },
+        { "name": "gender", "label": "Gender", "prefillFrom": "gender" },
+        { "name": "address", "label": "Address", "prefillFrom": "full_address" },
+        { "name": "mobile_number", "label": "Mobile Number", "prefillFrom": "mobile_number" }
+      ]
+    },
+    {
+      "id": "practical_driving_course",
+      "order": 4,
+      "title": "Practical Driving Course (PDC)",
+      "description": "Complete at least 8 hours of hands-on driving instruction.",
+      "requirements": ["Valid Student Permit (held for at least 30 days before license exam)", "8 hours minimum practical instruction at an accredited driving school"],
+      "fee_php": 3500,
+      "duration_weeks": 2,
+      "office_visit": false,
+      "steps": [
+        "Enroll at an LTO-accredited driving school",
+        "Complete at least 8 hours of practical driving",
+        "Pass the school's practical assessment",
+        "Receive your PDC certificate"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "vehicle_category", "label": "Vehicle Category (e.g., B - Car)", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "nonpro_license_exam",
+      "order": 5,
+      "title": "Non-Pro License Application & Exams",
+      "description": "Take the written and practical exams for your Non-Professional Driver's License.",
+      "requirements": ["Student Permit held at least 30 days", "PDC certificate", "Passing written exam score", "Passing practical exam"],
+      "fee_php": 585,
+      "duration_weeks": 1,
+      "office_visit": true,
+      "steps": [
+        "Return to the LTO Licensing Center",
+        "Take and pass the written examination",
+        "Take and pass the practical driving examination",
+        "Pay license fees"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "student_permit_ref", "label": "Student Permit Reference", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "license_release",
+      "order": 6,
+      "title": "License Release",
+      "description": "Claim your Non-Professional Driver's License.",
+      "requirements": ["Passed both exams", "Official receipt of payment"],
+      "fee_php": 0,
+      "duration_weeks": 0.5,
+      "office_visit": false,
+      "steps": [
+        "Wait for license card production",
+        "Receive SMS notification when ready",
+        "Claim your license or receive it via courier"
+      ],
+      "form": []
+    }
+  ]
+}

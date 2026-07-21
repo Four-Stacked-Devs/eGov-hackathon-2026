@@ -1,0 +1,594 @@
+# GabAI PH — MVP Implementation Specification
+## eGov Hackathon 2026 · Single Combined Build Prompt (Frontend + Backend)
+
+> **Instruction to the AI coding assistant:** Implement this specification EXACTLY as written.
+> Every endpoint URL, header name, request field, and response field in this document is
+> copied verbatim from official hackathon API documentation. **Do NOT invent, rename,
+> pluralize, or "improve" any API field, header, URL, or response shape.** If something is
+> not specified in this document, it does not exist — ask before assuming.
+> If a documented response contains fields not listed here, type them as `unknown` and ignore them.
+
+---
+
+## 0. PRODUCT DEFINITION
+
+**Name:** GabAI PH
+**Tagline:** "Verify once with your face. Get a living roadmap to your driver's license."
+
+**What it is:** A citizen-facing web app where a Filipino citizen:
+1. Logs in via **eGovPH SSO** OR registers via **face verification** (3 typed fields + live face scan → full profile auto-filled from PhilSys via eVerify).
+2. Sees an **interactive clickable roadmap** for obtaining a **driver's license** (Student Permit → Non-Professional License).
+3. Clicks nodes to open modals with requirements, fees, and **pre-filled forms** (Once-Only Policy: never re-type what eVerify already returned).
+4. Submits node forms to a **clearly-labeled simulated LTO sandbox**, receives **real SMS confirmations** via eMessage.
+5. Chats with a **stateless AI assistant** (eGov AI) docked beside the roadmap.
+
+**Hard scope boundaries (do NOT build):**
+- ❌ Fingerprint auth (no such API exists in the docs)
+- ❌ Real LTO integration (mock only, labeled "Simulated LTO sandbox — demo integration")
+- ❌ Other life-event roadmaps (render as disabled "Coming soon" tiles only)
+- ❌ Profile editing (profiles are LOCKED per eGovPH SSO checklist)
+- ❌ Manual login/logout forms, password management, external app-download links (forbidden by eGovPH SSO UI requirements)
+- ❌ AI chat conversation memory (chat is STATELESS; only the current node name is sent as context)
+- ❌ Email or in-app notifications (SMS only)
+- ❌ Voice, OCR, deepfake features
+
+---
+
+## 1. NON-NEGOTIABLE API FACTS (anti-hallucination layer)
+
+These correct common wrong assumptions. Violating any of these is a build failure.
+
+1. **A face scan alone CANNOT retrieve identity data.** The eVerify Face Liveness Web SDK only returns a `session_id` proving a live person is present. Identity data comes ONLY from eVerify `POST /api/query`, which requires demographics (`first_name`, `last_name`, `birth_date`) **plus** `face_liveness_session_id` in the same payload.
+2. **Use the eVerify Face Liveness Web SDK** (`window.eKYC().start({ pubKey })`) for identity verification. Do NOT use the standalone Face Liveness REST API (`/v1/liveness/session`) anywhere in this build — its tokens are NOT accepted by eVerify `/api/query`. The standalone REST API is out of scope entirely.
+3. **eGov SSO and eVerify are different systems.** SSO is a redirect flow using an `exchange_code`. eVerify is a demographics+biometrics query. Both are login paths; they do not share tokens.
+4. **eGov AI:** token expires in 28800 seconds (8 hours); the team has **200 total credits**. Tokens are minted server-side, cached, and reused. Never mint per-request.
+5. **eVerify returns `mobile_number` like `"639090000000"`. eMessage requires E.164 like `"+639090000000"`.** A tested `toE164()` utility must bridge this.
+6. **The only secret allowed in the browser is the eKYC `pubKey`** (designed to be public). Every other credential is backend-only.
+
+---
+
+## 2. TECH STACK & REPO STRUCTURE
+
+- **Frontend:** Next.js 14 (App Router), TypeScript `strict: true`, Tailwind CSS, Zustand (UI state only — auth state lives in the httpOnly cookie session)
+- **Backend:** Express + TypeScript, Zod (validate every request body; infer types via `z.infer`), Axios (one client per gov service, 5000ms timeout on all gov calls)
+- **Session:** httpOnly cookie (`gabai_session`, `SameSite=Lax`, random 32-byte hex ID) → in-memory `Map<string, User>` store. NO localStorage tokens. NO JWT.
+- **Persistence:** In-memory only (hackathon-grade). Mark with comment `// PROD: replace with Postgres` where a DB would go.
+- **Monorepo:**
+
+```
+gabai-ph/
+├── package.json                  # root: "dev": concurrently frontend+backend
+├── README.md                     # 5-line quickstart
+├── docs/demo-script.md
+├── shared/
+│   └── roadmap.definition.json   # SINGLE SOURCE OF TRUTH (Section 8)
+├── frontend/
+│   ├── .env.local                # NEXT_PUBLIC_* only
+│   ├── .env.example
+│   └── src/
+│       ├── app/
+│       │   ├── page.tsx                    # Landing
+│       │   ├── egovph/sso/page.tsx         # SSO callback (reads ?exchange_code=)
+│       │   ├── register/page.tsx           # Face verification flow
+│       │   ├── dashboard/page.tsx          # Roadmap + chat drawer
+│       │   └── admin/page.tsx              # Dev status page (unlinked)
+│       ├── components/
+│       │   ├── Roadmap.tsx
+│       │   ├── NodeModal.tsx
+│       │   ├── ChatDrawer.tsx
+│       │   ├── LockedField.tsx
+│       │   ├── SummaryBar.tsx
+│       │   └── SandboxBadge.tsx
+│       ├── lib/api.ts                      # fetch wrapper → backend only
+│       └── store/ui.ts                     # Zustand: modal/drawer/toast state
+└── backend/
+    ├── .env
+    ├── .env.example
+    └── src/
+        ├── index.ts                        # boot: env check → mint AI token → listen :4000
+        ├── env.ts                          # Zod-validated env, FAIL FAST if missing
+        ├── middleware/{session,error}.ts
+        ├── clients/{sso,everify,egovai,emessage}.ts
+        ├── services/tokenManager.ts
+        ├── routes/{auth,roadmap,forms,ai,admin}.ts
+        ├── mocks/fixtures.ts               # Section 10
+        └── utils/phone.ts                  # toE164()
+```
+
+---
+
+## 3. ENVIRONMENT VARIABLES
+
+### `backend/.env` (secrets — never sent to browser, never logged)
+```env
+PORT=4000
+FRONTEND_ORIGIN=http://localhost:3000
+
+# eGov SSO
+SSO_BASE_URL=https://hackathon-sso.e.gov.ph
+SSO_PARTNER_CODE=HACKATHON_SSO
+SSO_PARTNER_SECRET=0d77fba530ee49f5b00e36fe947bd384
+
+# eVerify (National ID)
+EVERIFY_BASE_URL=https://hackathon-everify-api.e.gov.ph
+EVERIFY_CLIENT_ID=a24bef86-8826-48f7-aac5-978ca5805c29
+EVERIFY_CLIENT_SECRET=1EQT3mEC8GqEYCcUufaylPewnWi052VcJdnAOmIPHFy5zbUv0JcqVEwf7DSeb1OB
+
+# eGov AI
+EGOVAI_BASE_URL=https://egov-ai-core-ws.oueg.info
+EGOVAI_ACCESS_CODE=f2c81ce889a5850fd59487ce988ec1324183682c62d300bdbd33d5064862942b
+
+# eMessage
+EMESSAGE_BASE_URL=https://ws-message.e.gov.ph
+EMESSAGE_TOKEN=40419e47290ae8488a0a796b7c4c66aa
+
+# Demo resilience flags — "true" = return fixture instead of calling gov API
+SSO_MOCK=false
+EVERIFY_MOCK=false
+AI_MOCK=true
+SMS_MOCK=false
+```
+
+### `frontend/.env.local` (public by design)
+```env
+NEXT_PUBLIC_API_URL=http://localhost:4000
+NEXT_PUBLIC_EKYC_PUBKEY=eyJpdiI6InAzOGc3d1BZcVVZck1IY3plS0xscVE9PSIsInZhbHVlIjoiSlRESmdFYkZ4ZnV3M1ZkUjFiTHpDUT09IiwibWFjIjoiZTEzZjI5ZGRkZTVhNWNkNGU3ZmQ0NDY4MTAyZDY2Yjc1NjJiYmMxNTMwN2E2NzVlZmM5ZjhjZmEyZWM1ZmMwMCIsInRhZyI6IiJ9
+```
+
+**Boot rule:** `backend/src/env.ts` parses `process.env` with a Zod schema. If any required var is missing or empty → `console.error("[ENV] Missing: <name>")` and `process.exit(1)`.
+
+---
+
+## 4. GOVERNMENT API CONTRACTS (verbatim — the ONLY allowed shapes)
+
+### 4.1 eGov SSO
+
+**Mint partner token**
+```
+POST {SSO_BASE_URL}/api/token
+Content-Type: application/json
+Body: { "partner_code": "{SSO_PARTNER_CODE}", "partner_secret": "{SSO_PARTNER_SECRET}" }
+→ response contains access_token (store shape as { access_token: string } & Record<string, unknown>)
+```
+
+**Exchange code for user profile**
+```
+POST {SSO_BASE_URL}/api/partner/sso_authentication
+Authorization: Bearer {sso access_token}
+Content-Type: application/json
+Body: { "exchange_code": "<value from ?exchange_code= query param>" }
+→ 200: user profile object (name, birthdate, address, email, contact number — map defensively,
+       type unknown fields as unknown)
+→ 401: { "error": "unauthorized", "message": "Invalid token.", "error_description": "Invalid token." }
+       → refresh partner token ONCE, retry ONCE, then fail.
+```
+
+**Inbound redirect:** eGovPH appends the parameter to OUR base URL:
+`{frontend}/egovph/sso?exchange_code=<code>` — this exact path must exist.
+
+### 4.2 eVerify (NIDAS)
+
+**Auth**
+```
+POST {EVERIFY_BASE_URL}/api/auth
+Content-Type: application/json
+Body: { "client_id": "{EVERIFY_CLIENT_ID}", "client_secret": "{EVERIFY_CLIENT_SECRET}" }
+→ 200: { "data": { "access_token": "eyJ...", "token_type": "Bearer", "expires_at": "1724223772" } }
+→ 403: invalid credentials (do not retry with same creds; surface error)
+```
+`expires_at` is a UNIX epoch string. Cache token; refresh when `now >= expires_at - 60s`.
+
+**Verify identity**
+```
+POST {EVERIFY_BASE_URL}/api/query
+Authorization: Bearer {everify access_token}
+Content-Type: application/json
+Body: {
+  "first_name": string,          // required
+  "middle_name": string,         // optional — OMIT the key if empty, do not send ""
+  "last_name": string,           // required
+  "suffix": string,              // optional — OMIT if empty
+  "birth_date": "YYYY-MM-DD",    // required
+  "face_liveness_session_id": string   // required, UUID from eKYC SDK result.session_id
+}
+→ 200: { "data": { "code": "AAA000", "token": "...", "reference": "...", "face_url": "...",
+         "full_name": "...", "first_name": "...", "middle_name": "...", "last_name": "...",
+         "suffix": null | string, "gender": "...", "marital_status": "...", "blood_type": "...",
+         "email": "...", "mobile_number": "639090000000", "birth_date": "YYYY-MM-DD",
+         "full_address": "...", "address_line_1": "...", ... } }
+→ 401: refresh token ONCE, retry ONCE.
+Success check: response.data.code starts with "AAA".
+NEVER return data.token, data.reference, or data.face_url to the frontend.
+```
+
+### 4.3 eVerify Face Liveness Web SDK (browser only)
+
+```html
+<script src="https://hackathon-everify-face-liveness.e.gov.ph/js/everify-liveness-sdk.min.js"></script>
+```
+```js
+window.eKYC().start({ pubKey: process.env.NEXT_PUBLIC_EKYC_PUBKEY })
+  .then((response) => {
+    // response = { status: "COMPLETED", result: { photo: "data:image/jpeg;base64,...",
+    //              session_id: "<uuid>", photo_url: "https://..." } }
+    // Use ONLY response.result.session_id. Do NOT upload photo/photo_url anywhere.
+  })
+  .catch((error) => { /* user cancelled or check failed → show retry UI */ });
+```
+Load in Next.js with `next/script` strategy `afterInteractive`. Guard: if `window.eKYC` is undefined when the user clicks, show "Verification SDK still loading — try again in a moment."
+
+### 4.4 eGov AI
+
+**Mint token (server boot + on expiry only)**
+```
+POST {EGOVAI_BASE_URL}/api/v1/egov/integration/token
+Content-Type: application/json
+Body: { "access_code": "{EGOVAI_ACCESS_CODE}" }
+→ 200: { "access_token": "<uuid>", "expires_in_seconds": 28800,
+         "credits_total": 200, "credits_remaining": <number> }
+```
+
+**Chat**
+```
+POST {EGOVAI_BASE_URL}/api/v1/egov/integration/ai_assistant/generate
+Authorization: Bearer {egovai access_token}
+Content-Type: application/json
+Body: { "prompt": string, "category": "PH" }   // "category" is ALWAYS exactly "PH"
+```
+
+**Credits**
+```
+GET {EGOVAI_BASE_URL}/api/v1/egov/integration/credits
+Authorization: Bearer {egovai access_token}
+```
+
+**Credit discipline (hard rules):** No AI call on page load. No warm-up calls. Chat fires only on explicit user send. Log `credits_remaining` to backend console after every AI call when available. `AI_MOCK=true` during all development; flip off only for integration test + live demo.
+
+### 4.5 eMessage
+
+```
+POST {EMESSAGE_BASE_URL}/messaging/v1/sms/push
+X-EMESSAGE-Auth: {EMESSAGE_TOKEN}          // exact header name, NOT "Authorization"
+Content-Type: application/json
+Body: { "number": "+639090000000", "message": string }   // number MUST be E.164
+→ 201: { "data": { "message": "SMS was successfully created." } }
+→ 400 / 422 on bad input
+```
+All SMS sends are **fire-and-forget**: failures are logged, never block or fail the parent request.
+
+**`utils/phone.ts` — required behavior (write unit tests for these exact cases):**
+```
+toE164("639090000000")  → "+639090000000"
+toE164("09090000000")   → "+639090000000"
+toE164("+639090000000") → "+639090000000"
+toE164("N/A") | toE164("") | toE164(undefined) → null   // caller skips SMS, logs warning
+```
+
+---
+
+## 5. BACKEND ROUTES (our API — exact contracts)
+
+All responses: `200 { ok: true, data: ... }` or error `{ ok: false, error: string, hint?: string }`.
+CORS: origin `FRONTEND_ORIGIN`, `credentials: true`. All gov axios clients: `timeout: 5000`.
+
+**Graceful degradation rule (applies to every gov call):** if the service's `*_MOCK` flag is `true` OR the real call times out / network-errors → return the matching fixture from `mocks/fixtures.ts` and add `"simulated": true` to the response data. Real successful calls add `"simulated": false`.
+
+### `POST /auth/sso`
+Body (Zod): `{ exchange_code: string (min 1) }`
+Flow: get cached SSO token (mint if absent) → call `sso_authentication` → on 401 refresh once & retry once → map profile to User → **match existing user by uniqid/personal details if present, else auto-register** (per eGovPH SSO logic) → create session, set `gabai_session` httpOnly cookie → return `{ user: sanitizedProfile, simulated }`.
+
+### `POST /auth/verify`
+Body (Zod):
+```ts
+{ first_name: z.string().min(1),
+  middle_name: z.string().optional(),
+  last_name: z.string().min(1),
+  suffix: z.string().optional(),
+  birth_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  session_id: z.string().uuid() }
+```
+Flow: get cached eVerify token → build `/api/query` payload (map `session_id` → `face_liveness_session_id`; omit empty optionals) → verify `data.code` starts `"AAA"` → persist full profile → initialize roadmap progress (node 1 `active`, rest `locked`) → set session cookie → fire-and-forget welcome SMS: `"Welcome to GabAI, {first_name}! Your driver's license roadmap is ready."` → return `{ user: sanitizedProfile, simulated }`.
+Sanitized profile = `{ full_name, first_name, middle_name, last_name, suffix, gender, birth_date, mobile_number, email, full_address, marital_status }`. Nothing else.
+
+### `GET /me` → session's sanitized user or 401.
+
+### `GET /roadmap`
+Returns `shared/roadmap.definition.json` merged with the session user's per-node status (`locked | active | done`) + computed summary `{ total_fee_php, total_weeks_estimate, office_visits }` from the JSON. 401 if no session.
+
+### `POST /forms/submit`  *(simulated LTO)*
+Body (Zod): `{ node_id: z.enum([...node ids from Section 8]), form: z.record(z.string()) }`
+Flow: validate node is `active` (else 409 `"Complete previous steps first"`) → `await sleep(800)` → generate `reference_no` = `"LTO-" + 8 random uppercase alphanumerics` → mark node `done`, next node `active` → fire-and-forget SMS: `"GabAI: Your {node_title} application {reference_no} was received. Next step: {next_node_title | 'None — journey complete!'}"` → return `{ status: "SUBMITTED", reference_no, node_id, next_node_id, simulated: true }`.
+`simulated` is ALWAYS `true` here — this endpoint never calls a real LTO system.
+
+### `POST /ai/chat`  *(stateless — NO memory)*
+Body (Zod): `{ prompt: z.string().min(1).max(500), node_id: z.string().optional() }`
+No conversation history is stored or sent. Construct the single prompt:
+```
+"You are a Philippine government services guide helping a citizen get a driver's license.
+The citizen is currently at step: {node_title or 'starting out'}.
+Answer concisely with official requirements and fees where known.
+Citizen question: {prompt}"
+```
+Call `ai_assistant/generate` with `{ prompt: constructed, category: "PH" }` → return `{ text, credits_remaining?: number, simulated }`.
+
+### `GET /admin/status`  *(dev only, no auth — do not link in UI)*
+Returns `{ tokens: { sso: {cached, expires_in_s}, everify: {...}, egovai: {...} }, mocks: { SSO_MOCK, EVERIFY_MOCK, AI_MOCK, SMS_MOCK }, egovai_credits_remaining: number | "unknown", users_in_memory: number }`. Proxies eGov AI credits endpoint ONLY when a cached token exists (never mints for this).
+
+### TokenManager (`services/tokenManager.ts`)
+One class, three instances (sso, everify, egovai). `async getToken(): Promise<string>` — returns cached if `now < expiresAt - 60_000`; else mints via the service's documented endpoint; concurrent callers await the same in-flight mint (single-flight). `invalidate()` for the 401-retry path. eGov AI instance is warmed at server boot (skipped if `AI_MOCK=true`). Never log token values — log only `"[token:<service>] minted, expires in <s>s"`.
+
+---
+
+## 6. FRONTEND PAGES (exact behavior)
+
+Global rules: mobile-first, must be flawless at **360px width** (DICT-graded requirement — no horizontal scroll, no overlap). Skeleton loaders on every fetch. Every error state = human message + retry button. `lib/api.ts` wraps fetch with `credentials: "include"` and only ever calls `NEXT_PUBLIC_API_URL` — the frontend NEVER calls a government URL directly (sole exception: the eKYC SDK script tag + `window.eKYC()`).
+
+### `/` — Landing
+Hero: name, tagline, one-sentence value prop. Two CTAs:
+1. **"Continue with eGovPH"** — for the hackathon demo this navigates to `/egovph/sso?exchange_code=DEMO_EXCHANGE_CODE` (comment in code: `// PROD: replace with real eGovPH-initiated redirect`).
+2. **"Register with Face Verification"** → `/register`.
+Below: 3 disabled "Coming soon" tiles — "I had a baby", "I lost my wallet", "Starting a business" (greyed, `cursor-not-allowed`, no handlers).
+**Forbidden on every page:** username/password forms, "Forgot password", profile-edit links, app-store links.
+
+### `/egovph/sso` — SSO callback
+Read `exchange_code` from `useSearchParams()`. Missing → error card "Invalid sign-in link" + button to `/`. Present → POST `/auth/sso`, show full-page loader "Signing you in with eGovPH…" → on success `router.replace("/dashboard")`; on failure show error + retry (re-POST) + back-to-home.
+
+### `/register` — Face verification
+Load SDK with `next/script` (`afterInteractive`). Card with exactly three inputs: First name, Last name, Birth date (`<input type="date">`, max = today). Optional collapsed "More (middle name, suffix)". Button **"Verify My Face"** (disabled until the 3 required fields are valid).
+Click → guard `window.eKYC` exists → call `window.eKYC().start({ pubKey })`:
+- `.then` → POST `/auth/verify` with `{ first_name, middle_name?, last_name, suffix?, birth_date, session_id: response.result.session_id }` → success: animated **"Identity Verified ✓"** card showing the returned profile as **read-only LockedField components** (lock icon + tooltip **"Managed by eGovPH"**) → "Go to my roadmap" → `/dashboard`. If `simulated: true`, render `<SandboxBadge/>` (small amber pill "sandbox") on the card.
+- `.catch` → non-blaming message "Face check was cancelled or didn't complete." + "Try again" (re-invokes SDK; typed fields preserved).
+- Backend verify failure → "We couldn't match those details with PhilSys. Check spelling and birth date." + retry.
+
+### `/dashboard` — Roadmap + Chat
+Guard: `GET /me` 401 → redirect `/`.
+Layout: `<SummaryBar/>` (from `/roadmap` summary: `"Total: ₱{total_fee_php} · est. {total_weeks_estimate} weeks · {office_visits} office visits"`) → `<Roadmap/>` → floating chat button → `<ChatDrawer/>`.
+
+**Roadmap.tsx:** render the 6 nodes from `/roadmap` as a connected path (vertical on mobile, winding horizontal ≥768px; SVG connectors). Node states: `done` (green, check), `active` (brand color, pulse ring), `locked` (grey, lock icon, not clickable — tooltip "Complete previous steps first"). Click on done/active → `<NodeModal/>`.
+
+**NodeModal.tsx:** title + description; requirements checklist; fee (₱) + estimated duration; step-by-step ordered list; if `node.form.length > 0` → form where any field with `prefillFrom` is a **LockedField** pre-filled from `/me` (never editable) and others are normal inputs; persistent amber banner in every modal: **"⚠ Simulated LTO sandbox — demo integration. No real application is filed."**; Submit → POST `/forms/submit` → success: confetti, node flips to done, next unlocks, toast `"Submitted! Ref {reference_no} — SMS confirmation sent 📱"`, modal closes. `done` nodes open read-only with their stored `reference_no`.
+
+**ChatDrawer.tsx:** stateless per message — sends only `{ prompt, node_id: <currently active node> }`; renders returned markdown; the visible message list is browser-side display only and is NEVER sent to the backend. Three suggestion chips (pre-written, short — credit discipline):
+- "What do I need for the medical certificate?"
+- "How much will everything cost in total?"
+- "What happens after my student permit?"
+Loading: typing indicator. Error: "Assistant is unavailable — your roadmap still works." Show `<SandboxBadge/>` next to assistant name when the last reply had `simulated: true`.
+
+### `/admin` — Dev status (unlinked)
+Fetch `/admin/status` every 10s: token table (cached? expires-in), mock-flag pills (amber ON / green OFF), AI credits big number, in-memory user count. Plain, functional.
+
+---
+
+## 7. UI SYSTEM (minimal, consistent)
+
+- Tailwind. Brand primary `#1D4ED8`, success `#16A34A`, locked `#9CA3AF`, sandbox amber `#F59E0B`. Font: Inter via `next/font`.
+- `SandboxBadge.tsx`: amber pill, dot + text "sandbox" — rendered wherever a response has `simulated: true`.
+- `LockedField.tsx`: read-only input, grey bg, right-aligned lock icon, tooltip "Managed by eGovPH".
+- Toasts: bottom-center, 4s auto-dismiss.
+- Confetti: `canvas-confetti`, fired once per successful node submit.
+
+---
+
+## 8. `shared/roadmap.definition.json` (SINGLE SOURCE OF TRUTH — use verbatim)
+
+```json
+{
+  "journey_id": "drivers_license_nonpro",
+  "title": "Driver's License Roadmap",
+  "subtitle": "Student Permit to Non-Professional License",
+  "nodes": [
+    {
+      "id": "medical_certificate",
+      "order": 1,
+      "title": "Medical Certificate",
+      "description": "Get a medical examination from an LTO-accredited physician.",
+      "requirements": ["Valid government ID (your Digital National ID works)", "Personal appearance at an LTO-accredited clinic"],
+      "fee_php": 500,
+      "duration_weeks": 0.5,
+      "office_visit": true,
+      "steps": [
+        "Find an LTO-accredited medical clinic near you",
+        "Present your Digital National ID",
+        "Undergo the medical examination (vision, hearing, physical)",
+        "Receive your electronically transmitted medical certificate"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "birth_date", "label": "Birth Date", "prefillFrom": "birth_date" },
+        { "name": "address", "label": "Address", "prefillFrom": "full_address" },
+        { "name": "preferred_clinic_city", "label": "Preferred Clinic City", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "theoretical_driving_course",
+      "order": 2,
+      "title": "Theoretical Driving Course (TDC)",
+      "description": "Complete the mandatory 15-hour theoretical driving course.",
+      "requirements": ["Medical certificate (from previous step)", "15 hours of instruction at an LTO-accredited driving school or free at LTO Driver's Education Center"],
+      "fee_php": 0,
+      "duration_weeks": 1,
+      "office_visit": false,
+      "steps": [
+        "Choose an accredited driving school or LTO Driver's Education Center (free)",
+        "Attend the 15-hour theoretical course",
+        "Pass the course assessment",
+        "Receive your TDC certificate"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "preferred_schedule", "label": "Preferred Schedule (e.g., Weekends)", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "student_permit",
+      "order": 3,
+      "title": "Student Permit",
+      "description": "Apply for your Student Permit at an LTO office.",
+      "requirements": ["Must be at least 16 years old", "Medical certificate", "TDC certificate", "Duly accomplished application form"],
+      "fee_php": 250,
+      "duration_weeks": 0.5,
+      "office_visit": true,
+      "steps": [
+        "Go to any LTO Licensing Center",
+        "Submit medical certificate and TDC certificate",
+        "Have your photo and signature captured",
+        "Pay the fee and receive your Student Permit"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "birth_date", "label": "Birth Date", "prefillFrom": "birth_date" },
+        { "name": "gender", "label": "Gender", "prefillFrom": "gender" },
+        { "name": "address", "label": "Address", "prefillFrom": "full_address" },
+        { "name": "mobile_number", "label": "Mobile Number", "prefillFrom": "mobile_number" }
+      ]
+    },
+    {
+      "id": "practical_driving_course",
+      "order": 4,
+      "title": "Practical Driving Course (PDC)",
+      "description": "Complete at least 8 hours of hands-on driving instruction.",
+      "requirements": ["Valid Student Permit (held for at least 30 days before license exam)", "8 hours minimum practical instruction at an accredited driving school"],
+      "fee_php": 3500,
+      "duration_weeks": 2,
+      "office_visit": false,
+      "steps": [
+        "Enroll at an LTO-accredited driving school",
+        "Complete at least 8 hours of practical driving",
+        "Pass the school's practical assessment",
+        "Receive your PDC certificate"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "vehicle_category", "label": "Vehicle Category (e.g., B - Car)", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "nonpro_license_exam",
+      "order": 5,
+      "title": "Non-Pro License Application & Exams",
+      "description": "Take the written and practical exams for your Non-Professional Driver's License.",
+      "requirements": ["Student Permit held at least 30 days", "PDC certificate", "Passing written exam score", "Passing practical exam"],
+      "fee_php": 585,
+      "duration_weeks": 1,
+      "office_visit": true,
+      "steps": [
+        "Return to the LTO Licensing Center",
+        "Take and pass the written examination",
+        "Take and pass the practical driving examination",
+        "Pay license fees"
+      ],
+      "form": [
+        { "name": "full_name", "label": "Full Name", "prefillFrom": "full_name" },
+        { "name": "student_permit_ref", "label": "Student Permit Reference", "prefillFrom": null }
+      ]
+    },
+    {
+      "id": "license_release",
+      "order": 6,
+      "title": "License Release",
+      "description": "Claim your Non-Professional Driver's License.",
+      "requirements": ["Passed both exams", "Official receipt of payment"],
+      "fee_php": 0,
+      "duration_weeks": 0.5,
+      "office_visit": false,
+      "steps": [
+        "Wait for license card production",
+        "Receive SMS notification when ready",
+        "Claim your license or receive it via courier"
+      ],
+      "form": []
+    }
+  ]
+}
+```
+
+Backend computes: `total_fee_php` = sum of `fee_php` (= 4835), `total_weeks_estimate` = sum of `duration_weeks` rounded up (= 6), `office_visits` = count of `office_visit: true` (= 3). Do not hardcode these numbers in the frontend — always compute from the JSON.
+
+*(Fees/durations are demo estimates for the hackathon; a code comment must say so.)*
+
+---
+
+## 9. SECURITY & QUALITY CHECKLIST (enforced, not optional)
+
+- [ ] No gov secret in any frontend bundle, response payload, or log. `grep`-verify before demo.
+- [ ] `data.token`, `data.reference`, `data.face_url` from eVerify never leave the backend.
+- [ ] SDK `result.photo` / `photo_url` never uploaded or persisted anywhere.
+- [ ] Central error middleware: client gets `{ ok:false, error, hint? }`; stack traces and upstream bodies go to server console only.
+- [ ] Zod validation on every route body; types via `z.infer` (no duplicate hand-written request types).
+- [ ] All gov axios calls: 5000ms timeout + degradation path (Section 5 rule).
+- [ ] 401-retry pattern: refresh token once, retry once, then surface error. Never loop.
+- [ ] Unit tests: `toE164()` (all Section 4.5 cases) + roadmap summary computation. (Vitest, backend only — that's enough for tonight.)
+- [ ] `.env.example` in both apps with placeholder values; real `.env*` gitignored.
+- [ ] Conventional commits; README quickstart: clone → `cp .env.example` ×2 → fill secrets → `npm i` → `npm run dev`.
+
+---
+
+## 10. `mocks/fixtures.ts` (exact fixture data)
+
+```ts
+export const FIXTURE_EVERIFY_PROFILE = {
+  code: "AAA000",
+  full_name: "JUAN SANTOS DELA CRUZ",
+  first_name: "JUAN",
+  middle_name: "SANTOS",
+  last_name: "DELA CRUZ",
+  suffix: null,
+  gender: "Male",
+  marital_status: "Single",
+  blood_type: "A",
+  email: "N/A",
+  mobile_number: "639090000000",
+  birth_date: "1990-01-01",
+  full_address: "123 Sample Street, Sample Barangay, Sample City, Sample Province, Philippines, 1000"
+};
+
+export const FIXTURE_SSO_PROFILE = {
+  first_name: "Juan",
+  middle_name: "Santos",
+  last_name: "Dela Cruz",
+  birth_date: "1990-01-01",
+  email: "juan.delacruz@example.ph",
+  mobile_number: "+639090000000",
+  full_address: "123 Sample Street, Sample Barangay, Sample City, Philippines, 1000"
+};
+
+export const FIXTURE_AI_REPLIES: Record<string, string> = {
+  default:
+    "For your driver's license journey, always bring your Digital National ID. Each step on your roadmap lists the exact requirements and fees — tap a step to see details.",
+  medical:
+    "For the **medical certificate**, visit an LTO-accredited clinic with a valid government ID. The exam covers vision, hearing, and a basic physical, and typically costs around ₱500. The result is transmitted electronically to LTO.",
+  cost:
+    "Your estimated total is **₱4,835**: medical ₱500, TDC free at LTO centers, student permit ₱250, practical driving course ~₱3,500, and license/exam fees ₱585.",
+  permit:
+    "After your **student permit**, hold it for at least 30 days while completing an 8-hour practical driving course. Then you can apply for the Non-Professional license exams."
+};
+// AI mock router: prompt includes "medical" → medical; "cost"|"much" → cost;
+// "permit"|"after" → permit; else default.
+```
+
+---
+
+## 11. DEMO SCRIPT (`docs/demo-script.md`)
+
+1. **[0:00]** Landing on a phone-width window → "Register with Face Verification" → type 3 fields → live face scan → profile auto-fills, every field locked "Managed by eGovPH". Say: *"Real eVerify + Face Liveness — Once-Only Policy in action."* Judge's phone buzzes: welcome SMS. *(Real eMessage.)*
+2. **[0:40]** Roadmap: summary bar "₱4,835 · 6 weeks · 3 office visits". Open Medical Certificate → form already filled → note the amber banner → Submit → confetti → SMS buzzes with reference number.
+3. **[1:20]** Chat chip: "What happens after my student permit?" → grounded answer. *(Real eGov AI, stateless — no data hoarding.)*
+4. **[1:45]** Close: *"Identity, SMS, and AI are live government APIs. LTO submission is sandboxed and labeled — the roadmap engine treats any agency as a new node type. That's the roadmap-to-everything."*
+
+**Pre-demo:** rehearse once with all `*_MOCK=true` (backup show), then set real flags; check `/admin` for token health + credits; charge the SMS phone.
+
+---
+
+## 12. BUILD ORDER (one-night time-box)
+
+| Hours | Deliverable |
+|---|---|
+| 1–2 | Monorepo scaffold, env validation, session middleware, TokenManagers (all mocks ON), `/admin/status`, `toE164` + tests |
+| 3–4 | `/register` face flow end-to-end (SDK → `/auth/verify` → locked profile card), `/egovph/sso` + `/auth/sso` |
+| 5–6 | `/roadmap` + `/forms/submit`, Roadmap/NodeModal/SummaryBar UI, SMS wiring, confetti |
+| 7 | ChatDrawer + `/ai/chat` (mock first, then one real integration test), landing polish, 360px pass |
+| 8 | Full rehearsal in mock mode AND real mode, README, demo-script.md, secret-leak grep |
+
+---
+
+*End of specification. Build exactly this. Where reality and this document disagree about a government API, the verbatim contracts in Section 4 win; if Section 4 is silent, stop and ask.*
